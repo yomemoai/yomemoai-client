@@ -12,8 +12,10 @@ const String _kPrefLocalPassword = "local_password_hash";
 const String _kPrefLockTimeout = "lock_timeout_minutes";
 
 class MemoryItem {
+  final String id;
   final String handle, description, idempotentKey, content;
   MemoryItem({
+    required this.id,
     required this.handle,
     required this.description,
     required this.idempotentKey,
@@ -32,6 +34,8 @@ class MemoryProvider extends ChangeNotifier {
   DateTime? lastSyncAt;
   DateTime? lastSyncAttemptAt;
   String? lastSyncError;
+  bool hasLoadedOnce = false;
+  final Set<String> _newItemIds = {};
 
   String _localPasswordHash = "";
   int _lockTimeoutMinutes = 15;
@@ -138,20 +142,35 @@ class MemoryProvider extends ChangeNotifier {
 
   Future<void> refreshMemories() async {
     if (apiKey.isEmpty || !_crypto.isInitialized) return;
-    isLoading = true;
+    isLoading = items.isEmpty && !hasLoadedOnce;
     lastSyncAttemptAt = DateTime.now();
     notifyListeners();
 
     try {
       final rawData = await _api.fetchMemories();
 
-      items = rawData.map((j) {
-        final String handle = j['handle']?.toString() ?? "No Handle";
-        final String desc = j['description']?.toString() ?? "";
-        final String key =
-            j['idempotent_key']?.toString() ?? j['id']?.toString() ?? "";
+      final prevIds = items.map((e) => e.id).toSet();
+      String asString(dynamic v, {String fallback = ""}) {
+        if (v == null) return fallback;
+        return v.toString();
+      }
 
-        final String? rawContent = j['content']?.toString();
+      final nextItems = rawData.whereType<Map>().map((raw) {
+        final j = raw;
+        final String id = asString(
+          j['id'],
+          fallback: asString(j['idempotent_key'], fallback: ""),
+        );
+        final String handle = asString(j['handle'], fallback: "No Handle");
+        final String desc = asString(j['description'], fallback: "");
+        final String key = asString(
+          j['idempotent_key'],
+          fallback: asString(j['id'], fallback: ""),
+        );
+
+        final String? rawContent = j.containsKey('content')
+            ? asString(j['content'])
+            : null;
 
         String decryptedContent = "";
         if (rawContent != null && rawContent.isNotEmpty) {
@@ -161,14 +180,22 @@ class MemoryProvider extends ChangeNotifier {
         }
 
         return MemoryItem(
+          id: id.isNotEmpty ? id : key,
           handle: handle,
           description: desc,
           idempotentKey: key,
           content: decryptedContent,
         );
       }).toList();
+      items = nextItems;
+      _newItemIds
+        ..clear()
+        ..addAll(
+          nextItems.map((e) => e.id).where((id) => !prevIds.contains(id)),
+        );
       lastSyncAt = DateTime.now();
       lastSyncError = null;
+      hasLoadedOnce = true;
     } catch (e) {
       debugPrint("Refresh Error: $e");
       lastSyncError = e.toString();
@@ -177,6 +204,8 @@ class MemoryProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  bool isNewItem(MemoryItem item) => _newItemIds.contains(item.id);
 
   Future<void> save(String h, String c, String d, String? k) async {
     await _api.syncMemory(

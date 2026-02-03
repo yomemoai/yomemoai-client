@@ -21,6 +21,7 @@ class AppRoot extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.read<MemoryProvider>();
     return MaterialApp(
+      title: "Yomemo.AI",
       home: const MainEntryPoint(),
       builder: (context, child) {
         return Focus(

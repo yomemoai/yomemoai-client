@@ -17,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final Set<String> _expandedHandles = {};
   Offset? _lastTapPosition;
+  final GlobalKey _helpKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.help_outline),
+            key: _helpKey,
             onPressed: () => _showHelp(context),
           ),
           IconButton(
@@ -58,10 +60,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: provider.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : provider.items.isEmpty
-          ? _buildEmptyState()
+      body: provider.items.isEmpty
+          ? (provider.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _buildEmptyState())
           : _buildGroupedList(context, provider.items),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
@@ -250,48 +252,44 @@ class _HomeScreenState extends State<HomeScreen> {
     const docsUrl = "https://doc.yomemo.ai";
     const githubUrl = "https://github.com/yomemoai";
 
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Wrap(
-            children: [
-              const ListTile(
-                title: Text("Help"),
-                subtitle: Text("Docs and GitHub"),
-              ),
-              ListTile(
-                leading: const Icon(Icons.link),
-                title: const Text("Docs"),
-                subtitle: const Text(docsUrl),
-                onTap: () async {
-                  await Clipboard.setData(const ClipboardData(text: docsUrl));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Docs link copied")),
-                    );
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.code),
-                title: const Text("GitHub"),
-                subtitle: const Text(githubUrl),
-                onTap: () async {
-                  await Clipboard.setData(const ClipboardData(text: githubUrl));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("GitHub link copied")),
-                    );
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      },
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final box = _helpKey.currentContext?.findRenderObject() as RenderBox?;
+    final position = box != null
+        ? box.localToGlobal(Offset.zero)
+        : const Offset(0, 0);
+    final size = box?.size ?? const Size(0, 0);
+    final rect = RelativeRect.fromLTRB(
+      position.dx,
+      position.dy + size.height,
+      overlay.size.width - position.dx,
+      overlay.size.height - position.dy,
     );
+
+    final action = await showMenu<String>(
+      context: context,
+      position: rect,
+      items: const [
+        PopupMenuItem(value: "docs", child: Text("Docs")),
+        PopupMenuItem(value: "github", child: Text("GitHub")),
+      ],
+    );
+
+    if (action == "docs") {
+      await Clipboard.setData(const ClipboardData(text: docsUrl));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Docs link copied")));
+      }
+    }
+    if (action == "github") {
+      await Clipboard.setData(const ClipboardData(text: githubUrl));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("GitHub link copied")));
+      }
+    }
   }
 
   Widget _buildHandleSectionHeader(String handle, int count, bool isExpanded) {
@@ -347,7 +345,8 @@ class _HomeScreenState extends State<HomeScreen> {
     MemoryItem item, {
     bool showHandle = true,
   }) {
-    return GestureDetector(
+    final isNew = context.watch<MemoryProvider>().isNewItem(item);
+    final card = GestureDetector(
       onTap: () => _openDetail(context, item),
       onLongPressStart: (details) {
         _lastTapPosition = details.globalPosition;
@@ -398,6 +397,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
+    );
+    if (!isNew) return card;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      switchInCurve: Curves.easeOut,
+      child: Container(key: ValueKey(item.id), child: card),
     );
   }
 
