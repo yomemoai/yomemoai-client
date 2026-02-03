@@ -1,5 +1,7 @@
 # YoMemo Client (Flutter)
 
+[![Build Desktop](https://github.com/yomemoai/yomemoai-client/actions/workflows/build.yml/badge.svg)](https://github.com/yomemoai/yomemoai-client/actions/workflows/build.yml)
+
 YoMemo is a security-first memory relay for AI applications. This Flutter client provides a local, zero-trust experience with hybrid encryption and a local lock screen.
 
 ## Features

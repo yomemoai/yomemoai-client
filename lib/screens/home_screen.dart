@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../memory_provider.dart';
 import 'settings_screen.dart';
@@ -274,21 +275,21 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
 
-    if (action == "docs") {
-      await Clipboard.setData(const ClipboardData(text: docsUrl));
-      if (context.mounted) {
+    Future<void> openExternal(String url, String label) async {
+      final uri = Uri.parse(url);
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text("Docs link copied")));
+        ).showSnackBar(SnackBar(content: Text("Failed to open $label")));
       }
     }
+
+    if (action == "docs") {
+      await openExternal(docsUrl, "Docs");
+    }
     if (action == "github") {
-      await Clipboard.setData(const ClipboardData(text: githubUrl));
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("GitHub link copied")));
-      }
+      await openExternal(githubUrl, "GitHub");
     }
   }
 
@@ -390,10 +391,27 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          trailing: IconButton(
-            icon: const Icon(Icons.edit),
-            tooltip: "Edit",
-            onPressed: () => _openEditor(context, item),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.copy),
+                tooltip: "Copy",
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: item.content));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(const SnackBar(content: Text("Copied")));
+                  }
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit),
+                tooltip: "Edit",
+                onPressed: () => _openEditor(context, item),
+              ),
+            ],
           ),
         ),
       ),
