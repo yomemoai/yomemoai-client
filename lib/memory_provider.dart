@@ -7,7 +7,7 @@ import 'package:crypto/crypto.dart';
 import 'api_service.dart';
 import 'crypto_service.dart';
 
-const String kClientVersion = "1.0.0+1";
+const String kClientVersion = "v0.0.1";
 const String _kPrefLocalPassword = "local_password_hash";
 const String _kPrefLockTimeout = "lock_timeout_minutes";
 

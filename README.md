@@ -1,16 +1,45 @@
-# yomemo_client
+# YoMemo Client (Flutter)
 
-A new Flutter project.
+YoMemo is a security-first memory relay for AI applications. This Flutter client provides a local, zero-trust experience with hybrid encryption and a local lock screen.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+- Hybrid encryption compatible with `python-yomemo-mcp`
+- Local password lock with idle timeout
+- Handle-based grouping and quick memory editing
+- Help menu with Docs and GitHub
+- YoMemo brand styling and logo assets
 
-A few resources to get you started if this is your first Flutter project:
+## Requirements
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- Flutter SDK 3.10+
+- macOS (for macOS build)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Setup
+
+1. Install dependencies:
+   ```bash
+   flutter pub get
+   ```
+2. Configure API key and private key path in the app Settings.
+
+## Security Model
+
+- Client-side hybrid encryption (RSA-OAEP + AES-GCM)
+- No plaintext stored on the server
+- Local lock protects access on device
+
+## Shortcuts
+
+- `⌘ + L` / `Ctrl + L`: Lock immediately
+
+## Build & Run
+
+```bash
+flutter run -d macos
+```
+
+## Docs
+
+- Product: https://yomemo.ai
+- Docs: https://doc.yomemo.ai
