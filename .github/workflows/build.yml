@@ -1,0 +1,43 @@
+name: Build Desktop
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.10.8"
+      - run: flutter pub get
+      - run: flutter build macos --release
+      - name: Archive macOS app
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r yomemoai-client-macos.zip Runner.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-app
+          path: build/macos/Build/Products/Release/yomemoai-client-macos.zip
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.10.8"
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Archive Windows app
+        run: |
+          cd build\windows\x64\runner\Release
+          7z a yomemoai-client-windows.zip *
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-exe
+          path: build/windows/x64/runner/Release/yomemoai-client-windows.zip
