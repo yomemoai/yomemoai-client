@@ -18,7 +18,13 @@ jobs:
       - name: Archive macOS app
         run: |
           cd build/macos/Build/Products/Release
-          zip -r yomemoai-client-macos.zip Runner.app
+          APP_NAME=$(ls -1 *.app | head -n 1)
+          if [ -z "$APP_NAME" ]; then
+            echo "No .app found in Release folder"
+            ls -la
+            exit 1
+          fi
+          zip -r yomemoai-client-macos.zip "$APP_NAME"
       - uses: actions/upload-artifact@v4
         with:
           name: macos-app
@@ -36,7 +42,7 @@ jobs:
       - name: Archive Windows app
         run: |
           cd build\windows\x64\runner\Release
-          7z a yomemoai-client-windows.zip *
+          7z a yomemoai-client-windows.zip *.exe *.dll *.pak *.dat *.json *.ico
       - uses: actions/upload-artifact@v4
         with:
           name: windows-exe
