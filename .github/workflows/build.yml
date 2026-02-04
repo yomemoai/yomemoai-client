@@ -54,7 +54,7 @@ jobs:
       - name: Archive Windows app (include all runtime files)
         run: |
           cd build\windows\x64\runner\Release
-          rem Pack the entire Release directory (exe + dll + data/flutter_assets etc.)
+          # Pack the entire Release directory (exe + dll + data/flutter_assets etc.)
           7z a yomemoai-client-windows.zip .\* -r
 
       - uses: actions/upload-artifact@v4
