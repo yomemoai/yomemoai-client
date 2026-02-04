@@ -29,7 +29,7 @@ class ApiService {
         "ciphertext": encryptedBase64,
         "description": description,
         "idempotent_key": keyToUse,
-        if (metadata != null) "metadata": metadata,
+        "metadata": ?metadata,
       },
     );
   }
