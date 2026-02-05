@@ -49,6 +49,7 @@ dependencies:
   shared_preferences: ^2.3.2  # 简单的键值对存储
   file_picker: ^8.1.2         # 调用系统的文件选择对话框
   url_launcher: ^6.3.2
+  speech_to_text: ^7.3.0
 
 
 dev_dependencies:
@@ -61,6 +62,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+
+  flutter_launcher_icons: ^0.14.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -101,3 +104,13 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  image_path: "assets/logo/yomemo-logo.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  macos:
+    generate: true
+  windows:
+    generate: true

@@ -45,5 +45,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>YoMemo uses your microphone to record voice and turn it into encrypted memories.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>YoMemo uses speech recognition to transcribe your voice into memory text.</string>
 </dict>
 </plist>

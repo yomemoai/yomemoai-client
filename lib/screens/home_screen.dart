@@ -27,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             _logo(size: 20),
             const SizedBox(width: 8),
@@ -36,10 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => provider.refreshMemories(),
-          ),
           IconButton(
             icon: const Icon(Icons.lock),
             tooltip: "Lock",
@@ -176,9 +173,19 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Overview",
-              style: TextStyle(fontWeight: FontWeight.w600),
+            Row(
+              children: [
+                const Text(
+                  "Overview",
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: "Refresh",
+                  onPressed: () => provider.refreshMemories(),
+                ),
+              ],
             ),
             const SizedBox(height: 6),
             const Text(
