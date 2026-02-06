@@ -19,6 +19,20 @@ class _HomeScreenState extends State<HomeScreen> {
   final Set<String> _expandedHandles = {};
   Offset? _lastTapPosition;
   final GlobalKey _helpKey = GlobalKey();
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -146,9 +160,19 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
+    final provider = context.watch<MemoryProvider>();
+
     return ListView(
+      controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-      children: rows,
+      children: [
+        ...rows,
+        if (provider.isLoadingMore)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+      ],
     );
   }
 
@@ -255,6 +279,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _two(int v) => v < 10 ? "0$v" : "$v";
+
+  void _onScroll() {
+    final provider = context.read<MemoryProvider>();
+    if (!provider.hasMore || provider.isLoadingMore) return;
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    // When near the bottom, try to load more
+    if (position.pixels > position.maxScrollExtent - 200) {
+      provider.loadMoreMemories();
+    }
+  }
 
   Future<void> _showHelp(BuildContext context) async {
     const docsUrl = "https://doc.yomemo.ai";

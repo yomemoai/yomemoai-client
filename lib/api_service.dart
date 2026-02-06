@@ -9,9 +9,26 @@ class ApiService {
     _dio.options.headers["Content-Type"] = "application/json";
   }
 
-  Future<List<dynamic>> fetchMemories() async {
-    final response = await _dio.get("/memory");
-    return response.data['data'] ?? [];
+  /// Fetch memories with cursor-based pagination.
+  /// Returns a map with:
+  /// - `data`: List of memory JSON objects.
+  /// - `nextCursor`: String cursor for the next page (empty when no more).
+  Future<Map<String, dynamic>> fetchMemories({
+    String? cursor,
+    int limit = 50,
+  }) async {
+    final response = await _dio.get(
+      "/memory",
+      queryParameters: {
+        "limit": limit,
+        if (cursor != null && cursor.isNotEmpty) "cursor": cursor,
+      },
+    );
+    final body = response.data ?? {};
+    return {
+      "data": body["data"] ?? [],
+      "nextCursor": body["next_cursor"] ?? "",
+    };
   }
 
   Future<void> syncMemory({

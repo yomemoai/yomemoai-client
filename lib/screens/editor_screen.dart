@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -12,7 +13,8 @@ class EditorScreen extends StatefulWidget {
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends State<EditorScreen> {
+class _EditorScreenState extends State<EditorScreen>
+    with WidgetsBindingObserver {
   late TextEditingController _handleController;
   late TextEditingController _descController;
   late TextEditingController _contentController;
@@ -22,9 +24,27 @@ class _EditorScreenState extends State<EditorScreen> {
   int? _speechInsertOffset;
   String _speechLastRecognized = "";
 
+  // --- Auto-save ---
+  Timer? _autoSaveTimer;
+  bool _isDirty = false;
+  bool _isAutoSaving = false;
+  DateTime? _lastAutoSavedAt;
+  String? _savedIdempotentKey;
+
+  // Snapshot of last-saved values to detect real changes
+  late String _savedHandle;
+  late String _savedDesc;
+  late String _savedContent;
+
+  // Focus nodes for blur-triggered auto-save
+  final FocusNode _handleFocus = FocusNode();
+  final FocusNode _descFocus = FocusNode();
+  final FocusNode _contentFocus = FocusNode();
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _handleController = TextEditingController(text: widget.item?.handle ?? "");
     _descController = TextEditingController(
       text: widget.item?.description ?? "",
@@ -33,15 +53,117 @@ class _EditorScreenState extends State<EditorScreen> {
       text: widget.item?.content ?? "",
     );
     _speech = stt.SpeechToText();
+    _savedIdempotentKey = widget.item?.idempotentKey;
+    _savedHandle = widget.item?.handle ?? "";
+    _savedDesc = widget.item?.description ?? "";
+    _savedContent = widget.item?.content ?? "";
+
+    _handleController.addListener(_checkDirty);
+    _descController.addListener(_checkDirty);
+    _contentController.addListener(_checkDirty);
+
+    _handleFocus.addListener(_onFocusChange);
+    _descFocus.addListener(_onFocusChange);
+    _contentFocus.addListener(_onFocusChange);
+
+    _startAutoSaveTimer();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _autoSaveTimer?.cancel();
+    _handleFocus.removeListener(_onFocusChange);
+    _descFocus.removeListener(_onFocusChange);
+    _contentFocus.removeListener(_onFocusChange);
+    _handleFocus.dispose();
+    _descFocus.dispose();
+    _contentFocus.dispose();
+    _handleController.removeListener(_checkDirty);
+    _descController.removeListener(_checkDirty);
+    _contentController.removeListener(_checkDirty);
     _handleController.dispose();
     _descController.dispose();
     _contentController.dispose();
     _speech.stop();
     super.dispose();
+  }
+
+  // Auto-save when app goes to background (iOS home / switch app)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      _autoSave();
+    }
+  }
+
+  // Auto-save when any text field loses focus
+  void _onFocusChange() {
+    final anyHasFocus =
+        _handleFocus.hasFocus || _descFocus.hasFocus || _contentFocus.hasFocus;
+    if (!anyHasFocus && _isDirty) {
+      _autoSave();
+    }
+  }
+
+  bool get _hasRealChanges =>
+      _handleController.text != _savedHandle ||
+      _descController.text != _savedDesc ||
+      _contentController.text != _savedContent;
+
+  void _checkDirty() {
+    final dirty = _hasRealChanges;
+    if (dirty != _isDirty) {
+      setState(() => _isDirty = dirty);
+    }
+  }
+
+  int get _autoSaveSeconds =>
+      context.read<MemoryProvider>().autoSaveSeconds;
+
+  void _startAutoSaveTimer() {
+    _autoSaveTimer?.cancel();
+    final interval = Duration(seconds: _autoSaveSeconds);
+    _autoSaveTimer = Timer.periodic(interval, (_) => _autoSave());
+  }
+
+  Future<void> _autoSave() async {
+    if (!_isDirty || _isSaving || _isAutoSaving) return;
+    final handle = _handleController.text.trim();
+    final content = _contentController.text;
+    if (handle.isEmpty || content.isEmpty) return;
+
+    setState(() => _isAutoSaving = true);
+    try {
+      await context.read<MemoryProvider>().save(
+        handle,
+        content,
+        _descController.text.trim(),
+        _savedIdempotentKey ?? widget.item?.idempotentKey,
+      );
+      if (mounted) {
+        // After first auto-save of a new memory, capture the idempotent key
+        // so subsequent saves update instead of creating duplicates.
+        final provider = context.read<MemoryProvider>();
+        final match = provider.items.where(
+          (i) => i.handle == handle && i.content == content,
+        );
+        if (match.isNotEmpty) {
+          _savedIdempotentKey = match.first.idempotentKey;
+        }
+        _savedHandle = handle;
+        _savedDesc = _descController.text.trim();
+        _savedContent = content;
+        setState(() {
+          _isDirty = false;
+          _isAutoSaving = false;
+          _lastAutoSavedAt = DateTime.now();
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isAutoSaving = false);
+    }
   }
 
   String _two(int v) => v < 10 ? "0$v" : "$v";
@@ -53,11 +175,12 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   Future<void> _toggleListening() async {
-    // 目前语音输入只在移动端启用，macOS 上避免调用底层插件导致闪退
     if (!(Platform.isIOS || Platform.isAndroid)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Voice capture is only available on mobile for now.")),
+        const SnackBar(
+          content: Text("Voice capture is only available on mobile for now."),
+        ),
       );
       return;
     }
@@ -101,14 +224,11 @@ class _EditorScreenState extends State<EditorScreen> {
       return;
     }
 
-    // 决定语音插入起点（单手说话为主，默认从当前光标或末尾开始）
     final current = _contentController.text;
     final selection = _contentController.selection;
-    final insertAt =
-        selection.isValid ? selection.baseOffset : current.length;
+    final insertAt = selection.isValid ? selection.baseOffset : current.length;
     var safeInsertAt = insertAt.clamp(0, current.length);
 
-    // 保证前面有空格（只插一次）
     if (current.isNotEmpty &&
         safeInsertAt > 0 &&
         !RegExp(r'\s$').hasMatch(current.substring(0, safeInsertAt))) {
@@ -144,16 +264,17 @@ class _EditorScreenState extends State<EditorScreen> {
       }
 
       final current = _contentController.text;
-      final offset =
-          (_speechInsertOffset ?? current.length).clamp(0, current.length);
+      final offset = (_speechInsertOffset ?? current.length).clamp(
+        0,
+        current.length,
+      );
       final before = current.substring(0, offset);
 
       // 使用最新一次识别结果覆盖语音区域，避免重复追加
       final updated = recognized.isEmpty ? before : "$before$recognized";
       _contentController.text = updated;
       final newOffset = updated.length;
-      _contentController.selection =
-          TextSelection.collapsed(offset: newOffset);
+      _contentController.selection = TextSelection.collapsed(offset: newOffset);
 
       _speechLastRecognized = recognized;
     });
@@ -167,6 +288,7 @@ class _EditorScreenState extends State<EditorScreen> {
       return;
     }
 
+    _autoSaveTimer?.cancel();
     setState(() => _isSaving = true);
 
     try {
@@ -174,11 +296,15 @@ class _EditorScreenState extends State<EditorScreen> {
         _handleController.text.trim(),
         _contentController.text,
         _descController.text.trim(),
-        widget.item?.idempotentKey,
+        _savedIdempotentKey ?? widget.item?.idempotentKey,
       );
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        _isDirty = false;
+        Navigator.pop(context);
+      }
     } catch (e) {
       if (mounted) {
+        _startAutoSaveTimer();
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text("Failed to save: $e")));
@@ -196,6 +322,31 @@ class _EditorScreenState extends State<EditorScreen> {
       appBar: AppBar(
         title: Text(isEditing ? "Edit Memory" : "New Memory"),
         actions: [
+          if (_isAutoSaving)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    color: Colors.blueGrey[400],
+                  ),
+                ),
+              ),
+            )
+          else if (_isDirty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Center(
+                child: Icon(
+                  Icons.circle,
+                  size: 10,
+                  color: Colors.orange[400],
+                ),
+              ),
+            ),
           if (_isSaving)
             const Center(
               child: Padding(
@@ -211,49 +362,96 @@ class _EditorScreenState extends State<EditorScreen> {
             IconButton(icon: const Icon(Icons.check), onPressed: _handleSave),
         ],
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              TextField(
-                controller: _handleController,
-                decoration: const InputDecoration(
-                  labelText: "Handle",
-                  hintText: "e.g. project-name, coding",
-                  border: OutlineInputBorder(),
-                ),
-                enabled: !isEditing,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _descController,
-                decoration: const InputDecoration(
-                  labelText: "Description (Optional)",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: TextField(
-                  controller: _contentController,
-                  maxLines: null,
-                  expands: true,
-                  textAlignVertical: TextAlignVertical.top,
+      body: GestureDetector(
+        onTap: () {
+          FocusManager.instance.primaryFocus?.unfocus();
+          // Focus listeners will pick up the blur and trigger auto-save
+        },
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _handleController,
+                  focusNode: _handleFocus,
                   decoration: const InputDecoration(
-                    labelText: "Secret Content",
-                    hintText: "Your sensitive information goes here...",
+                    labelText: "Handle",
+                    hintText: "e.g. project-name, coding",
                     border: OutlineInputBorder(),
-                    alignLabelWithHint: true,
+                  ),
+                  enabled: !isEditing,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _descController,
+                  focusNode: _descFocus,
+                  decoration: const InputDecoration(
+                    labelText: "Description (Optional)",
+                    border: OutlineInputBorder(),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              _buildVoiceInputBar(),
-            ],
+                const SizedBox(height: 16),
+                Expanded(
+                  child: TextField(
+                    controller: _contentController,
+                    focusNode: _contentFocus,
+                    maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                    decoration: const InputDecoration(
+                      labelText: "Secret Content",
+                      hintText: "Your sensitive information goes here...",
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildAutoSaveStatus(),
+                const SizedBox(height: 8),
+                _buildVoiceInputBar(),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAutoSaveStatus() {
+    // No indicators at all when content hasn't changed
+    if (!_isDirty && !_isAutoSaving) {
+      return const SizedBox.shrink();
+    }
+
+    String text;
+    Color color;
+    if (_isAutoSaving) {
+      text = "Saving...";
+      color = Colors.blueGrey[500]!;
+    } else if (_isDirty && _lastAutoSavedAt != null) {
+      final t = _lastAutoSavedAt!;
+      text = "Auto-saved at ${_two(t.hour)}:${_two(t.minute)}:${_two(t.second)} · edited";
+      color = Colors.orange[400]!;
+    } else if (_isDirty) {
+      text = "Unsaved changes";
+      color = Colors.orange[400]!;
+    } else {
+      text = "";
+      color = Colors.transparent;
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child: text.isEmpty
+          ? const SizedBox.shrink()
+          : Text(
+              text,
+              key: ValueKey(text),
+              style: TextStyle(fontSize: 11, color: color),
+            ),
     );
   }
 

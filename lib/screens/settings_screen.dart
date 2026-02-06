@@ -14,6 +14,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _newPwdCtrl;
   late TextEditingController _confirmPwdCtrl;
   late TextEditingController _timeoutCtrl;
+  late TextEditingController _autoSaveCtrl;
   String _path = "";
   String _existingKey = "";
 
@@ -27,6 +28,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _newPwdCtrl = TextEditingController();
     _confirmPwdCtrl = TextEditingController();
     _timeoutCtrl = TextEditingController(text: p.lockTimeoutMinutes.toString());
+    _autoSaveCtrl = TextEditingController(text: p.autoSaveSeconds.toString());
   }
 
   @override
@@ -35,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _newPwdCtrl.dispose();
     _confirmPwdCtrl.dispose();
     _timeoutCtrl.dispose();
+    _autoSaveCtrl.dispose();
     super.dispose();
   }
 
@@ -44,7 +47,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(title: const Text("Configuration")),
       body: Padding(
         padding: const EdgeInsets.all(20),
-        child: Column(
+        child: ListView(
           children: [
             TextField(
               controller: _keyCtrl,
@@ -112,7 +115,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const Spacer(),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 10),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Editor",
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _autoSaveCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "Auto-save Interval (seconds)",
+                helperText: "Also saves on blur. Range: 1-300",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 30),
             ElevatedButton(
               onPressed: () async {
                 final apiKeyToSave = _keyCtrl.text.trim().isEmpty
@@ -136,6 +159,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (timeout != null && timeout > 0) {
                   await context.read<MemoryProvider>().updateLockTimeoutMinutes(
                     timeout,
+                  );
+                }
+
+                final autoSave = int.tryParse(_autoSaveCtrl.text.trim());
+                if (autoSave != null && autoSave >= 1) {
+                  await context.read<MemoryProvider>().updateAutoSaveSeconds(
+                    autoSave,
                   );
                 }
 
