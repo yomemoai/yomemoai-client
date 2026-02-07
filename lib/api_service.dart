@@ -67,4 +67,9 @@ class ApiService {
     }
     return {"idempotent_key": keyToUse};
   }
+
+  /// Delete a memory by id. May throw if server does not support or fails.
+  Future<void> deleteMemory(String id) async {
+    await _dio.delete("/memory/$id");
+  }
 }

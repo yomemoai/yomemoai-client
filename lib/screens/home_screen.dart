@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -37,7 +38,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MemoryProvider>();
-    final readOnly = !provider.hasValidCrypto;
 
     return Scaffold(
       appBar: AppBar(
@@ -73,59 +73,20 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          if (readOnly)
-            Material(
-              color: Colors.amber.shade100,
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Row(
-                    children: [
-                      Icon(Icons.lock, size: 20, color: Colors.amber.shade900),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "Data is encrypted. Please set private key in Settings.",
-                          style: TextStyle(fontSize: 13, color: Colors.amber.shade900),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const SettingsScreen()),
-                          );
-                        },
-                        child: const Text("Settings"),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          Expanded(
-            child: provider.items.isEmpty
-                ? (provider.isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _buildEmptyState())
-                : _buildGroupedList(context, provider.items),
-          ),
-        ],
+      body: provider.items.isEmpty
+          ? (provider.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _buildEmptyState())
+          : _buildGroupedList(context, provider.items),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const EditorScreen()),
+          );
+        },
+        child: const Icon(Icons.add),
       ),
-      floatingActionButton: readOnly
-          ? null
-          : FloatingActionButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const EditorScreen()),
-                );
-              },
-              child: const Icon(Icons.add),
-            ),
     );
   }
 
@@ -196,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       if (isExpanded) {
         for (final item in grouped[handle]!) {
-          rows.add(_buildMemoryCard(context, item, showHandle: false));
+          rows.add(_buildDismissibleMemoryCard(context, item));
         }
       }
     }
@@ -411,6 +372,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(fontSize: 13, color: Colors.blueGrey[600]),
               ),
             const SizedBox(width: 8),
+            if (isExpanded) ...[
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                tooltip: "Add memory in this handle",
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditorScreen(initialHandle: handle),
+                    ),
+                  );
+                },
+              ),
+              IconButton(
+                icon: Icon(Icons.delete_forever_outlined, color: Colors.red.shade400),
+                tooltip: "Delete all in this handle",
+                onPressed: () => _confirmDeleteHandle(context, handle, count),
+              ),
+            ],
             Icon(
               isExpanded ? Icons.expand_less : Icons.expand_more,
               size: 18,
@@ -419,6 +399,40 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildDismissibleMemoryCard(
+    BuildContext context,
+    MemoryItem item,
+  ) {
+    final provider = context.read<MemoryProvider>();
+    return Dismissible(
+      key: ValueKey(item.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: Colors.red.shade400,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Icon(Icons.delete, color: Colors.white, size: 28),
+      ),
+      onDismissed: (_) async {
+        await provider.deleteMemory(item.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(provider.lastSyncError != null
+                  ? "Delete failed: ${provider.lastSyncError}"
+                  : "Deleted"),
+            ),
+          );
+        }
+      },
+      child: _buildMemoryCard(context, item, showHandle: false),
     );
   }
 
@@ -472,6 +486,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
+          leading: item.handle.startsWith('voice-')
+              ? Icon(Icons.mic, color: Colors.blueGrey[600], size: 22)
+              : null,
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -492,6 +509,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 tooltip: "Edit",
                 onPressed: () => _openEditor(context, item),
               ),
+              if (defaultTargetPlatform == TargetPlatform.macOS)
+                IconButton(
+                  icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+                  tooltip: "Delete",
+                  onPressed: () => _confirmDeleteMemory(context, item),
+                ),
             ],
           ),
         ),
@@ -536,6 +559,80 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     if (action == 'edit') {
       _openEditor(context, item);
+    }
+  }
+
+  Future<void> _confirmDeleteMemory(BuildContext context, MemoryItem item) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Delete memory?"),
+        content: const Text(
+          "This cannot be undone. The memory will be removed.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || ok != true) return;
+    final provider = context.read<MemoryProvider>();
+    await provider.deleteMemory(item.id);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.lastSyncError != null
+              ? "Delete failed: ${provider.lastSyncError}"
+              : "Deleted"),
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmDeleteHandle(
+    BuildContext context,
+    String handle,
+    int count,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Delete entire handle?"),
+        content: Text(
+          "Delete all $count memories in \"$handle\"? This cannot be undone.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Delete all"),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || ok != true) return;
+    final provider = context.read<MemoryProvider>();
+    await provider.deleteMemoriesByHandle(handle);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.lastSyncError != null
+              ? "Delete failed: ${provider.lastSyncError}"
+              : "Deleted $count memories"),
+        ),
+      );
     }
   }
 }

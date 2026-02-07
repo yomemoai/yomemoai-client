@@ -7,7 +7,9 @@ import '../memory_provider.dart';
 
 class EditorScreen extends StatefulWidget {
   final MemoryItem? item;
-  const EditorScreen({super.key, this.item});
+  /// When adding a new memory under a specific handle, pass it here.
+  final String? initialHandle;
+  const EditorScreen({super.key, this.item, this.initialHandle});
 
   @override
   State<EditorScreen> createState() => _EditorScreenState();
@@ -47,7 +49,9 @@ class _EditorScreenState extends State<EditorScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _handleController = TextEditingController(text: widget.item?.handle ?? "");
+    _handleController = TextEditingController(
+      text: widget.item?.handle ?? widget.initialHandle ?? "",
+    );
     _descController = TextEditingController(
       text: widget.item?.description ?? "",
     );
@@ -56,7 +60,7 @@ class _EditorScreenState extends State<EditorScreen>
     );
     _speech = stt.SpeechToText();
     _savedIdempotentKey = widget.item?.idempotentKey;
-    _savedHandle = widget.item?.handle ?? "";
+    _savedHandle = widget.item?.handle ?? widget.initialHandle ?? "";
     _savedDesc = widget.item?.description ?? "";
     _savedContent = widget.item?.content ?? "";
 

@@ -319,6 +319,31 @@ class MemoryProvider extends ChangeNotifier {
 
   bool isNewItem(MemoryItem item) => _newItemIds.contains(item.id);
 
+  /// Deletes a memory by id. On success removes from [items]; on failure sets [lastSyncError].
+  Future<void> deleteMemory(String id) async {
+    if (apiKey.isEmpty) return;
+    try {
+      await _api.deleteMemory(id);
+      items = items.where((e) => e.id != id).toList();
+      lastSyncError = null;
+    } catch (e) {
+      debugPrint("Delete memory error: $e");
+      lastSyncError = e.toString();
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  /// Deletes all memories under [handle] by calling delete for each. Stops on first API error.
+  Future<void> deleteMemoriesByHandle(String handle) async {
+    if (apiKey.isEmpty) return;
+    final ids = items.where((e) => e.handle == handle).map((e) => e.id).toList();
+    for (final id in ids) {
+      await deleteMemory(id);
+      if (lastSyncError != null) return;
+    }
+  }
+
   /// Saves and returns the idempotent_key from the server (for editor to track).
   /// Refreshes the list in the background to avoid UI stutter.
   Future<String?> save(String h, String c, String d, String? k) async {
