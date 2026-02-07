@@ -22,24 +22,26 @@ class _EditorScreenState extends State<EditorScreen>
   late stt.SpeechToText _speech;
   bool _isListening = false;
   int? _speechInsertOffset;
-  String _speechLastRecognized = "";
+  String _lastPhraseBeforeComma = "";
+  final List<String> _seenPhrasesBeforeComma = [];
 
-  // --- Auto-save ---
   Timer? _autoSaveTimer;
   bool _isDirty = false;
   bool _isAutoSaving = false;
   DateTime? _lastAutoSavedAt;
   String? _savedIdempotentKey;
 
-  // Snapshot of last-saved values to detect real changes
   late String _savedHandle;
   late String _savedDesc;
   late String _savedContent;
 
-  // Focus nodes for blur-triggered auto-save
   final FocusNode _handleFocus = FocusNode();
   final FocusNode _descFocus = FocusNode();
   final FocusNode _contentFocus = FocusNode();
+
+  Timer? _speechPauseTimer;
+
+  bool _isImmersiveMode = false;
 
   @override
   void initState() {
@@ -66,6 +68,12 @@ class _EditorScreenState extends State<EditorScreen>
     _descFocus.addListener(_onFocusChange);
     _contentFocus.addListener(_onFocusChange);
 
+    _contentFocus.addListener(() {
+      setState(() {
+        _isImmersiveMode = _contentFocus.hasFocus;
+      });
+    });
+
     _startAutoSaveTimer();
   }
 
@@ -73,15 +81,10 @@ class _EditorScreenState extends State<EditorScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _autoSaveTimer?.cancel();
-    _handleFocus.removeListener(_onFocusChange);
-    _descFocus.removeListener(_onFocusChange);
-    _contentFocus.removeListener(_onFocusChange);
+    _speechPauseTimer?.cancel();
     _handleFocus.dispose();
     _descFocus.dispose();
     _contentFocus.dispose();
-    _handleController.removeListener(_checkDirty);
-    _descController.removeListener(_checkDirty);
-    _contentController.removeListener(_checkDirty);
     _handleController.dispose();
     _descController.dispose();
     _contentController.dispose();
@@ -89,7 +92,6 @@ class _EditorScreenState extends State<EditorScreen>
     super.dispose();
   }
 
-  // Auto-save when app goes to background (iOS home / switch app)
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive ||
@@ -98,7 +100,6 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  // Auto-save when any text field loses focus
   void _onFocusChange() {
     final anyHasFocus =
         _handleFocus.hasFocus || _descFocus.hasFocus || _contentFocus.hasFocus;
@@ -119,8 +120,7 @@ class _EditorScreenState extends State<EditorScreen>
     }
   }
 
-  int get _autoSaveSeconds =>
-      context.read<MemoryProvider>().autoSaveSeconds;
+  int get _autoSaveSeconds => context.read<MemoryProvider>().autoSaveSeconds;
 
   void _startAutoSaveTimer() {
     _autoSaveTimer?.cancel();
@@ -134,24 +134,16 @@ class _EditorScreenState extends State<EditorScreen>
     final content = _contentController.text;
     if (handle.isEmpty || content.isEmpty) return;
 
-    setState(() => _isAutoSaving = true);
+    if (mounted) setState(() => _isAutoSaving = true);
     try {
-      await context.read<MemoryProvider>().save(
+      final key = await context.read<MemoryProvider>().save(
         handle,
         content,
         _descController.text.trim(),
         _savedIdempotentKey ?? widget.item?.idempotentKey,
       );
+      if (mounted && key != null) _savedIdempotentKey = key;
       if (mounted) {
-        // After first auto-save of a new memory, capture the idempotent key
-        // so subsequent saves update instead of creating duplicates.
-        final provider = context.read<MemoryProvider>();
-        final match = provider.items.where(
-          (i) => i.handle == handle && i.content == content,
-        );
-        if (match.isNotEmpty) {
-          _savedIdempotentKey = match.first.idempotentKey;
-        }
         _savedHandle = handle;
         _savedDesc = _descController.text.trim();
         _savedContent = content;
@@ -179,43 +171,38 @@ class _EditorScreenState extends State<EditorScreen>
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Voice capture is only available on mobile for now."),
+          content: Text("Voice capture is only available on mobile."),
         ),
       );
       return;
     }
     if (_isListening) {
+      _speechPauseTimer?.cancel();
+      _speechPauseTimer = null;
       await _speech.stop();
       if (mounted) {
         setState(() {
           _isListening = false;
           _speechInsertOffset = null;
-          _speechLastRecognized = "";
+          _lastPhraseBeforeComma = "";
+          _seenPhrasesBeforeComma.clear();
         });
       }
       return;
     }
-
     final available = await _speech.initialize(
       onStatus: (status) {
         if (!mounted) return;
-        if (status == 'notListening') {
-          setState(() {
-            _isListening = false;
-          });
-        }
+        if (status == 'notListening') setState(() => _isListening = false);
       },
       onError: (error) {
         if (!mounted) return;
-        setState(() {
-          _isListening = false;
-        });
+        setState(() => _isListening = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Speech error: ${error.errorMsg}")),
         );
       },
     );
-
     if (!available) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -223,30 +210,25 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
+    if (mounted) setState(() => _isListening = true);
+
+    _contentFocus.requestFocus();
 
     final current = _contentController.text;
     final selection = _contentController.selection;
     final insertAt = selection.isValid ? selection.baseOffset : current.length;
     var safeInsertAt = insertAt.clamp(0, current.length);
-
     if (current.isNotEmpty &&
         safeInsertAt > 0 &&
         !RegExp(r'\s$').hasMatch(current.substring(0, safeInsertAt))) {
       final before = current.substring(0, safeInsertAt);
       final after = current.substring(safeInsertAt);
-      final updated = "$before $after";
-      _contentController.text = updated;
+      _contentController.text = "$before $after";
       safeInsertAt += 1;
     }
     _speechInsertOffset = safeInsertAt;
-    _speechLastRecognized = "";
-
-    if (mounted) {
-      setState(() {
-        _isListening = true;
-      });
-    }
-
+    _lastPhraseBeforeComma = "";
+    _seenPhrasesBeforeComma.clear();
     await _speech.listen(
       onResult: _onSpeechResult,
       listenMode: stt.ListenMode.dictation,
@@ -257,27 +239,70 @@ class _EditorScreenState extends State<EditorScreen>
   void _onSpeechResult(result) {
     final recognized = (result.recognizedWords as String).trim();
     if (recognized.isEmpty) return;
-
+    _speechPauseTimer?.cancel();
+    _speechPauseTimer = Timer(
+      const Duration(milliseconds: 1200),
+      _insertPausePunctuation,
+    );
     setState(() {
-      if (_handleController.text.trim().isEmpty) {
+      if (_handleController.text.trim().isEmpty)
         _handleController.text = _defaultHandle();
-      }
-
       final current = _contentController.text;
       final offset = (_speechInsertOffset ?? current.length).clamp(
         0,
         current.length,
       );
       final before = current.substring(0, offset);
+      String segment = recognized;
 
-      // 使用最新一次识别结果覆盖语音区域，避免重复追加
-      final updated = recognized.isEmpty ? before : "$before$recognized";
+      if (before.isNotEmpty && recognized.startsWith(before)) {
+        segment = recognized.substring(before.length);
+      } else if (before.isNotEmpty) {
+        final beforeNorm = before.replaceAll(", ", "");
+        if (beforeNorm.isNotEmpty && recognized.startsWith(beforeNorm)) {
+          segment = recognized.substring(beforeNorm.length);
+        } else if (_lastPhraseBeforeComma.isNotEmpty &&
+            recognized.startsWith(_lastPhraseBeforeComma)) {
+          segment = recognized.substring(_lastPhraseBeforeComma.length);
+        }
+      }
+
+      int stripLen = 0;
+      for (final phrase in _seenPhrasesBeforeComma) {
+        if (phrase.isNotEmpty &&
+            segment.startsWith(phrase) &&
+            phrase.length > stripLen) {
+          stripLen = phrase.length;
+        }
+      }
+      if (stripLen > 0) segment = segment.substring(stripLen);
+
+      final updated = before + segment;
       _contentController.text = updated;
-      final newOffset = updated.length;
-      _contentController.selection = TextSelection.collapsed(offset: newOffset);
-
-      _speechLastRecognized = recognized;
+      _contentController.selection = TextSelection.collapsed(
+        offset: updated.length,
+      );
     });
+  }
+
+  void _insertPausePunctuation() {
+    _speechPauseTimer = null;
+    if (!_isListening || !mounted) return;
+    final current = _contentController.text;
+    final offset = (_speechInsertOffset ?? current.length).clamp(
+      0,
+      current.length,
+    );
+    _lastPhraseBeforeComma = current.substring(offset);
+    if (_lastPhraseBeforeComma.isNotEmpty)
+      _seenPhrasesBeforeComma.add(_lastPhraseBeforeComma);
+    const punctuation = ", ";
+    final updated = current + punctuation;
+    _contentController.text = updated;
+    final newOffset = updated.length;
+    _contentController.selection = TextSelection.collapsed(offset: newOffset);
+    _speechInsertOffset = newOffset;
+    if (mounted) setState(() {});
   }
 
   Future<void> _handleSave() async {
@@ -287,18 +312,17 @@ class _EditorScreenState extends State<EditorScreen>
       );
       return;
     }
-
     _autoSaveTimer?.cancel();
     setState(() => _isSaving = true);
-
     try {
-      await context.read<MemoryProvider>().save(
+      final key = await context.read<MemoryProvider>().save(
         _handleController.text.trim(),
         _contentController.text,
         _descController.text.trim(),
         _savedIdempotentKey ?? widget.item?.idempotentKey,
       );
       if (mounted) {
+        if (key != null) _savedIdempotentKey = key;
         _isDirty = false;
         Navigator.pop(context);
       }
@@ -320,100 +344,124 @@ class _EditorScreenState extends State<EditorScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? "Edit Memory" : "New Memory"),
+        title: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: _isImmersiveMode
+              ? const Text(
+                  "Writing...",
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                )
+              : Text(isEditing ? "Edit Memory" : "New Memory"),
+        ),
         actions: [
           if (_isAutoSaving)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
               child: Center(
                 child: SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 1.5,
-                    color: Colors.blueGrey[400],
+                    color: Colors.blueGrey,
                   ),
                 ),
               ),
             )
           else if (_isDirty)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Center(
-                child: Icon(
-                  Icons.circle,
-                  size: 10,
-                  color: Colors.orange[400],
-                ),
+                child: Icon(Icons.circle, size: 10, color: Colors.orange[400]),
               ),
             ),
-          if (_isSaving)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else
-            IconButton(icon: const Icon(Icons.check), onPressed: _handleSave),
+          IconButton(
+            icon: const Icon(Icons.check),
+            onPressed: _isSaving ? null : _handleSave,
+          ),
         ],
       ),
       body: GestureDetector(
+        // 点击空白处收起键盘并退出沉浸模式
         onTap: () {
-          FocusManager.instance.primaryFocus?.unfocus();
-          // Focus listeners will pick up the blur and trigger auto-save
+          FocusScope.of(context).unfocus();
         },
-        behavior: HitTestBehavior.translucent,
+        behavior: HitTestBehavior.opaque,
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _handleController,
-                  focusNode: _handleFocus,
-                  decoration: const InputDecoration(
-                    labelText: "Handle",
-                    hintText: "e.g. project-name, coding",
-                    border: OutlineInputBorder(),
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeInOut,
+                        child: _isImmersiveMode
+                            ? const SizedBox(height: 0)
+                            : Column(
+                                children: [
+                                  const SizedBox(height: 16),
+                                  TextField(
+                                    controller: _handleController,
+                                    focusNode: _handleFocus,
+                                    decoration: const InputDecoration(
+                                      labelText: "Handle",
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    enabled: !isEditing,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  TextField(
+                                    controller: _descController,
+                                    focusNode: _descFocus,
+                                    decoration: const InputDecoration(
+                                      labelText: "Description (Optional)",
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                ],
+                              ),
+                      ),
+
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeInOut,
+                        margin: EdgeInsets.only(top: _isImmersiveMode ? 20 : 0),
+                        constraints: BoxConstraints(
+                          minHeight:
+                              MediaQuery.of(context).size.height *
+                              (_isImmersiveMode ? 0.7 : 0.3),
+                        ),
+                        child: TextField(
+                          controller: _contentController,
+                          focusNode: _contentFocus,
+                          maxLines: null,
+                          minLines: _isImmersiveMode ? 20 : 12,
+                          style: const TextStyle(fontSize: 18, height: 1.5),
+                          decoration: InputDecoration(
+                            hintText: "Start writing your memory...",
+                            hintStyle: TextStyle(color: Colors.grey[400]),
+                            border: _isImmersiveMode
+                                ? InputBorder.none
+                                : const OutlineInputBorder(),
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  enabled: !isEditing,
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _descController,
-                  focusNode: _descFocus,
-                  decoration: const InputDecoration(
-                    labelText: "Description (Optional)",
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: TextField(
-                    controller: _contentController,
-                    focusNode: _contentFocus,
-                    maxLines: null,
-                    expands: true,
-                    textAlignVertical: TextAlignVertical.top,
-                    decoration: const InputDecoration(
-                      labelText: "Secret Content",
-                      hintText: "Your sensitive information goes here...",
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildAutoSaveStatus(),
-                const SizedBox(height: 8),
-                _buildVoiceInputBar(),
-              ],
-            ),
+              ),
+
+              _buildAutoSaveStatus(),
+              _buildVoiceInputBar(),
+            ],
           ),
         ),
       ),
@@ -421,95 +469,77 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Widget _buildAutoSaveStatus() {
-    // No indicators at all when content hasn't changed
-    if (!_isDirty && !_isAutoSaving) {
-      return const SizedBox.shrink();
-    }
-
-    String text;
-    Color color;
-    if (_isAutoSaving) {
-      text = "Saving...";
-      color = Colors.blueGrey[500]!;
-    } else if (_isDirty && _lastAutoSavedAt != null) {
-      final t = _lastAutoSavedAt!;
-      text = "Auto-saved at ${_two(t.hour)}:${_two(t.minute)}:${_two(t.second)} · edited";
-      color = Colors.orange[400]!;
-    } else if (_isDirty) {
-      text = "Unsaved changes";
-      color = Colors.orange[400]!;
-    } else {
-      text = "";
-      color = Colors.transparent;
-    }
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      child: text.isEmpty
-          ? const SizedBox.shrink()
-          : Text(
-              text,
-              key: ValueKey(text),
-              style: TextStyle(fontSize: 11, color: color),
-            ),
+    return SizedBox(
+      height: 20,
+      child: Center(
+        child: _isAutoSaving
+            ? const SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(strokeWidth: 1),
+              )
+            : (!_isDirty && _lastAutoSavedAt != null)
+            ? Container(
+                width: 4,
+                height: 4,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black12,
+                ),
+              )
+            : const SizedBox.shrink(),
+      ),
     );
   }
 
   Widget _buildVoiceInputBar() {
-    final baseGradient = const LinearGradient(
-      colors: [Color(0xFF22D3EE), Color(0xFF3B82F6)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          "Speak to capture this memory",
-          style: TextStyle(fontSize: 12, color: Colors.blueGrey[600]),
-        ),
-        const SizedBox(height: 8),
-        GestureDetector(
-          onTap: _toggleListening,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            width: _isListening ? 90 : 80,
-            height: _isListening ? 90 : 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: baseGradient,
-              boxShadow: [
-                if (_isListening)
-                  BoxShadow(
-                    color: const Color(0xFF22D3EE).withValues(alpha: 0.45),
-                    blurRadius: 24,
-                    spreadRadius: 4,
-                  )
-                else
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.18),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: _isListening ? 1.0 : (_isImmersiveMode ? 0.4 : 1.0),
+      child: Container(
+        padding: const EdgeInsets.only(bottom: 16, top: 8),
+        child: Column(
+          children: [
+            if (!_isImmersiveMode)
+              Text(
+                "Speak to capture this memory",
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey[300]),
+              ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: _toggleListening,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: _isListening ? 70 : 60,
+                height: _isListening ? 70 : 60,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF22D3EE), Color(0xFF3B82F6)],
                   ),
-              ],
-            ),
-            child: Center(
-              child: Icon(
-                _isListening ? Icons.stop : Icons.mic,
-                color: Colors.white,
-                size: 32,
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          (_isListening
+                                  ? const Color(0xFF22D3EE)
+                                  : Colors.black)
+                              .withOpacity(_isListening ? 0.4 : 0.1),
+                      blurRadius: _isListening ? 20 : 10,
+                      offset: Offset(0, _isListening ? 0 : 4),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _isListening ? Icons.stop : Icons.mic,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
             ),
-          ),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          _isListening ? "Listening..." : "Single tap, one-hand friendly",
-          style: TextStyle(fontSize: 12, color: Colors.blueGrey[500]),
-        ),
-      ],
+      ),
     );
   }
 }

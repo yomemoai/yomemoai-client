@@ -42,6 +42,8 @@ class MemoryProvider extends ChangeNotifier {
   String _nextCursor = "";
   bool _hasMore = true;
   bool _isLoadingMore = false;
+  /// Total count of memories on the server (from search response). 0 if not yet known.
+  int _totalCount = 0;
 
   String _localPasswordHash = "";
   int _lockTimeoutMinutes = 15;
@@ -57,6 +59,9 @@ class MemoryProvider extends ChangeNotifier {
   int get autoSaveSeconds => _autoSaveSeconds;
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
+  bool get hasValidCrypto => _crypto.isInitialized;
+  /// Total number of memories on the server. Use for summary; falls back to items.length if 0 and we have items.
+  int get totalCount => _totalCount > 0 ? _totalCount : items.length;
 
   Future<void> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -173,6 +178,10 @@ class MemoryProvider extends ChangeNotifier {
       final rawData = result["data"] as List<dynamic>? ?? [];
       _nextCursor = (result["nextCursor"] as String? ?? "").trim();
       _hasMore = _nextCursor.isNotEmpty;
+      final totalFromApi = result["total"];
+      if (totalFromApi is int && totalFromApi >= 0) {
+        _totalCount = totalFromApi;
+      }
 
       final prevIds = items.map((e) => e.id).toSet();
       String asString(dynamic v, {String fallback = ""}) {
@@ -289,12 +298,11 @@ class MemoryProvider extends ChangeNotifier {
         }).toList();
 
         items = [...items, ...moreItems];
-        _newItemIds
-          ..addAll(
-            moreItems
-                .map((e) => e.id)
-                .where((id) => !prevIds.contains(id)),
-          );
+        _newItemIds.addAll(
+          moreItems
+              .map((e) => e.id)
+              .where((id) => !prevIds.contains(id)),
+        );
         _nextCursor = newCursor;
         _hasMore = _nextCursor.isNotEmpty;
         lastSyncAt = DateTime.now();
@@ -311,14 +319,18 @@ class MemoryProvider extends ChangeNotifier {
 
   bool isNewItem(MemoryItem item) => _newItemIds.contains(item.id);
 
-  Future<void> save(String h, String c, String d, String? k) async {
-    await _api.syncMemory(
+  /// Saves and returns the idempotent_key from the server (for editor to track).
+  /// Refreshes the list in the background to avoid UI stutter.
+  Future<String?> save(String h, String c, String d, String? k) async {
+    final res = await _api.syncMemory(
       handle: h,
       encryptedBase64: _crypto.encrypt(c),
       description: d,
       existingIdempotentKey: k,
       metadata: {"client_version": kClientVersion, "client": "flutter"},
     );
-    await refreshMemories();
+    final key = res["idempotent_key"]?.toString();
+    refreshMemories();
+    return key;
   }
 }

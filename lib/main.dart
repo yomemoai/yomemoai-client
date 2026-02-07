@@ -94,7 +94,11 @@ class MainEntryPoint extends StatelessWidget {
             return Listener(
               behavior: HitTestBehavior.translucent,
               onPointerDown: (_) => p.recordActivity(),
-              child: screen,
+              child: GestureDetector(
+                onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+                behavior: HitTestBehavior.translucent,
+                child: screen,
+              ),
             );
           },
         );

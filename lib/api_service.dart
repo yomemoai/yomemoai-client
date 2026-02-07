@@ -13,6 +13,7 @@ class ApiService {
   /// Returns a map with:
   /// - `data`: List of memory JSON objects.
   /// - `nextCursor`: String cursor for the next page (empty when no more).
+  /// - `total`: Total count of memories matching the query (from server).
   Future<Map<String, dynamic>> fetchMemories({
     String? cursor,
     int limit = 50,
@@ -25,13 +26,24 @@ class ApiService {
       },
     );
     final body = response.data ?? {};
+    final totalRaw = body["total"];
+    int total = 0;
+    if (totalRaw != null) {
+      if (totalRaw is int) {
+        total = totalRaw;
+      } else if (totalRaw is num) {
+        total = totalRaw.toInt();
+      }
+    }
     return {
       "data": body["data"] ?? [],
       "nextCursor": body["next_cursor"] ?? "",
+      "total": total,
     };
   }
 
-  Future<void> syncMemory({
+  /// Returns response body with idempotent_key, memory_id, etc.
+  Future<Map<String, dynamic>> syncMemory({
     required String handle,
     required String encryptedBase64,
     String? description,
@@ -39,15 +51,20 @@ class ApiService {
     Map<String, dynamic>? metadata,
   }) async {
     final String keyToUse = existingIdempotentKey ?? const Uuid().v4();
-    await _dio.post(
+    final response = await _dio.post(
       "/memory",
       data: {
         "handle": handle,
         "ciphertext": encryptedBase64,
         "description": description,
         "idempotent_key": keyToUse,
-        "metadata": ?metadata,
+        "metadata": metadata,
       },
     );
+    final body = response.data;
+    if (body is Map<String, dynamic>) {
+      return body;
+    }
+    return {"idempotent_key": keyToUse};
   }
 }

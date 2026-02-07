@@ -25,6 +25,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _existingKey = p.apiKey;
     _keyCtrl = TextEditingController();
     _path = p.pkPath;
+    if (p.apiKey.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Please set your API Key to get started"),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      });
+    }
     _newPwdCtrl = TextEditingController();
     _confirmPwdCtrl = TextEditingController();
     _timeoutCtrl = TextEditingController(text: p.lockTimeoutMinutes.toString());
@@ -173,7 +185,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   apiKeyToSave,
                   _path,
                 );
-                if (mounted) Navigator.pop(context);
+                if (mounted) {
+                  final messenger = ScaffoldMessenger.of(context);
+                  Navigator.pop(context);
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text("Settings saved")),
+                  );
+                }
               },
               child: const Text("Save & Connect"),
             ),

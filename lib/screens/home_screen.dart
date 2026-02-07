@@ -37,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MemoryProvider>();
+    final readOnly = !provider.hasValidCrypto;
 
     return Scaffold(
       appBar: AppBar(
@@ -72,20 +73,59 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: provider.items.isEmpty
-          ? (provider.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildEmptyState())
-          : _buildGroupedList(context, provider.items),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const EditorScreen()),
-          );
-        },
-        child: const Icon(Icons.add),
+      body: Column(
+        children: [
+          if (readOnly)
+            Material(
+              color: Colors.amber.shade100,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lock, size: 20, color: Colors.amber.shade900),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Data is encrypted. Please set private key in Settings.",
+                          style: TextStyle(fontSize: 13, color: Colors.amber.shade900),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                          );
+                        },
+                        child: const Text("Settings"),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          Expanded(
+            child: provider.items.isEmpty
+                ? (provider.isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildEmptyState())
+                : _buildGroupedList(context, provider.items),
+          ),
+        ],
       ),
+      floatingActionButton: readOnly
+          ? null
+          : FloatingActionButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const EditorScreen()),
+                );
+              },
+              child: const Icon(Icons.add),
+            ),
     );
   }
 
@@ -147,7 +187,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final handles = grouped.keys.toList()..sort();
 
     final List<Widget> rows = [];
-    rows.add(_buildSummary(context, items.length, handles.length));
+    final provider = context.watch<MemoryProvider>();
+    rows.add(_buildSummary(context, provider.totalCount, handles.length));
     for (final handle in handles) {
       final isExpanded = _expandedHandles.contains(handle);
       rows.add(
@@ -159,8 +200,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     }
-
-    final provider = context.watch<MemoryProvider>();
 
     return ListView(
       controller: _scrollController,
