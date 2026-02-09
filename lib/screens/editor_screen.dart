@@ -44,6 +44,9 @@ class _EditorScreenState extends State<EditorScreen>
   Timer? _speechPauseTimer;
 
   bool _isImmersiveMode = false;
+  bool _hasContent = false;
+  /// True only after user has typed or used voice in this session.
+  bool _hasUserInputThisSession = false;
 
   @override
   void initState() {
@@ -63,10 +66,22 @@ class _EditorScreenState extends State<EditorScreen>
     _savedHandle = widget.item?.handle ?? widget.initialHandle ?? "";
     _savedDesc = widget.item?.description ?? "";
     _savedContent = widget.item?.content ?? "";
+    _hasContent = _contentController.text.trim().isNotEmpty;
 
     _handleController.addListener(_checkDirty);
     _descController.addListener(_checkDirty);
-    _contentController.addListener(_checkDirty);
+    _contentController.addListener(() {
+      _checkDirty();
+      final wasInput = _hasUserInputThisSession;
+      _hasUserInputThisSession = true;
+      final has = _contentController.text.trim().isNotEmpty;
+      if (has != _hasContent || !wasInput) {
+        setState(() {
+          _hasContent = has;
+          _hasUserInputThisSession = true;
+        });
+      }
+    });
 
     _handleFocus.addListener(_onFocusChange);
     _descFocus.addListener(_onFocusChange);
@@ -134,9 +149,13 @@ class _EditorScreenState extends State<EditorScreen>
 
   Future<void> _autoSave() async {
     if (!_isDirty || _isSaving || _isAutoSaving) return;
-    final handle = _handleController.text.trim();
+    var handle = _handleController.text.trim();
     final content = _contentController.text;
-    if (handle.isEmpty || content.isEmpty) return;
+    if (content.isEmpty) return;
+    if (handle.isEmpty) {
+      handle = _defaultDailyHandle();
+      _handleController.text = handle;
+    }
 
     if (mounted) setState(() => _isAutoSaving = true);
     try {
@@ -164,10 +183,16 @@ class _EditorScreenState extends State<EditorScreen>
 
   String _two(int v) => v < 10 ? "0$v" : "$v";
 
-  String _defaultHandle() {
+  String _defaultVoiceHandle() {
     final now = DateTime.now();
     final date = "${now.year}-${_two(now.month)}-${_two(now.day)}";
     return "voice-$date";
+  }
+
+  String _defaultDailyHandle() {
+    final now = DateTime.now();
+    final date = "${now.year}-${_two(now.month)}-${_two(now.day)}";
+    return "daily-$date";
   }
 
   Future<void> _toggleListening() async {
@@ -250,7 +275,7 @@ class _EditorScreenState extends State<EditorScreen>
     );
     setState(() {
       if (_handleController.text.trim().isEmpty)
-        _handleController.text = _defaultHandle();
+        _handleController.text = _defaultVoiceHandle();
       final current = _contentController.text;
       final offset = (_speechInsertOffset ?? current.length).clamp(
         0,
@@ -310,17 +335,22 @@ class _EditorScreenState extends State<EditorScreen>
   }
 
   Future<void> _handleSave() async {
-    if (_handleController.text.isEmpty || _contentController.text.isEmpty) {
+    if (_contentController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Handle and Content are required")),
+        const SnackBar(content: Text("Content is required")),
       );
       return;
+    }
+    var handle = _handleController.text.trim();
+    if (handle.isEmpty) {
+      handle = _defaultDailyHandle();
+      _handleController.text = handle;
     }
     _autoSaveTimer?.cancel();
     setState(() => _isSaving = true);
     try {
       final key = await context.read<MemoryProvider>().save(
-        _handleController.text.trim(),
+        handle,
         _contentController.text,
         _descController.text.trim(),
         _savedIdempotentKey ?? widget.item?.idempotentKey,
@@ -350,7 +380,7 @@ class _EditorScreenState extends State<EditorScreen>
       appBar: AppBar(
         title: AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
-          child: _isImmersiveMode
+          child: _isImmersiveMode && _hasUserInputThisSession
               ? const Text(
                   "Writing...",
                   style: TextStyle(fontSize: 16, color: Colors.grey),

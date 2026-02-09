@@ -11,6 +11,7 @@ const String kClientVersion = "v0.0.5";
 const String _kPrefLocalPassword = "local_password_hash";
 const String _kPrefLockTimeout = "lock_timeout_minutes";
 const String _kPrefAutoSaveSeconds = "auto_save_seconds";
+const String _kPrefConfirmSwipeDelete = "confirm_swipe_delete";
 
 class MemoryItem {
   final String id;
@@ -48,6 +49,7 @@ class MemoryProvider extends ChangeNotifier {
   String _localPasswordHash = "";
   int _lockTimeoutMinutes = 15;
   int _autoSaveSeconds = 5;
+  bool _confirmSwipeDelete = true;
   DateTime _lastActive = DateTime.now();
   bool _isLocked = false;
   Timer? _lockTimer;
@@ -57,6 +59,7 @@ class MemoryProvider extends ChangeNotifier {
   bool get isLocked => _isLocked;
   int get lockTimeoutMinutes => _lockTimeoutMinutes;
   int get autoSaveSeconds => _autoSaveSeconds;
+  bool get confirmSwipeDelete => _confirmSwipeDelete;
   bool get hasMore => _hasMore;
   bool get isLoadingMore => _isLoadingMore;
   bool get hasValidCrypto => _crypto.isInitialized;
@@ -70,6 +73,7 @@ class MemoryProvider extends ChangeNotifier {
     _localPasswordHash = prefs.getString(_kPrefLocalPassword) ?? "";
     _lockTimeoutMinutes = prefs.getInt(_kPrefLockTimeout) ?? 15;
     _autoSaveSeconds = prefs.getInt(_kPrefAutoSaveSeconds) ?? 5;
+     _confirmSwipeDelete = prefs.getBool(_kPrefConfirmSwipeDelete) ?? true;
 
     if (apiKey.isNotEmpty && pkPath.isNotEmpty) {
       _api.updateApiKey(apiKey);
@@ -132,6 +136,13 @@ class MemoryProvider extends ChangeNotifier {
     _autoSaveSeconds = seconds.clamp(1, 300);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kPrefAutoSaveSeconds, _autoSaveSeconds);
+    notifyListeners();
+  }
+
+  Future<void> updateConfirmSwipeDelete(bool value) async {
+    _confirmSwipeDelete = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kPrefConfirmSwipeDelete, _confirmSwipeDelete);
     notifyListeners();
   }
 

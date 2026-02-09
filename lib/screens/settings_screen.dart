@@ -55,6 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<MemoryProvider>();
     return Scaffold(
       appBar: AppBar(title: const Text("Configuration")),
       body: Padding(
@@ -136,6 +137,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 "Editor",
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              title: const Text("Confirm swipe-to-delete"),
+              subtitle: const Text(
+                "Ask for confirmation when deleting a memory by swipe.",
+              ),
+              value: provider.confirmSwipeDelete,
+              onChanged: (value) {
+                provider.updateConfirmSwipeDelete(value);
+              },
             ),
             const SizedBox(height: 12),
             TextField(

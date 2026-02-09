@@ -38,8 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MemoryProvider>();
-
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -86,6 +85,34 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
         child: const Icon(Icons.add),
+      ),
+    );
+
+    return Shortcuts(
+      shortcuts: {
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyN):
+            const ActivateIntent(),
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyN):
+            const ActivateIntent(),
+      },
+      child: Actions(
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const EditorScreen(),
+                ),
+              );
+              return null;
+            },
+          ),
+        },
+        child: Focus(
+          autofocus: true,
+          child: scaffold,
+        ),
       ),
     );
   }
@@ -420,6 +447,31 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: const Icon(Icons.delete, color: Colors.white, size: 28),
       ),
+      confirmDismiss: provider.confirmSwipeDelete
+          ? (_) async {
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text("Delete memory?"),
+                  content: const Text(
+                    "This cannot be undone. The memory will be removed.",
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text("Cancel"),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                      child: const Text("Delete"),
+                    ),
+                  ],
+                ),
+              );
+              return ok == true;
+            }
+          : null,
       onDismissed: (_) async {
         await provider.deleteMemory(item.id);
         if (context.mounted) {
@@ -450,6 +502,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onLongPress: () => _showMemoryMenuAt(context, item),
       child: Card(
         elevation: 2,
+        color: isNew ? const Color(0xFFE0F2FE) : null,
         margin: const EdgeInsets.only(bottom: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         child: ListTile(
@@ -492,6 +545,24 @@ class _HomeScreenState extends State<HomeScreen> {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (isNew)
+                Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    "NEW",
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.green,
+                    ),
+                  ),
+                ),
               IconButton(
                 icon: const Icon(Icons.copy),
                 tooltip: "Copy",
