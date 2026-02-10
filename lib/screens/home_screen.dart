@@ -8,6 +8,7 @@ import '../memory_provider.dart';
 import 'settings_screen.dart';
 import 'editor_screen.dart';
 import 'memory_detail_screen.dart';
+import 'insights_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -51,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
+          _buildInsightsButton(provider),
           IconButton(
             icon: const Icon(Icons.lock),
             tooltip: "Lock",
@@ -70,6 +72,8 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
+          if (provider.userEmail.isNotEmpty || provider.userAvatarUrl.isNotEmpty)
+            _buildUserAvatar(provider),
         ],
       ),
       body: provider.items.isEmpty
@@ -112,6 +116,90 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Focus(
           autofocus: true,
           child: scaffold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInsightsButton(MemoryProvider provider) {
+    final alertCount = provider.pendingAlertCount;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.auto_awesome),
+          tooltip: "Insights",
+          onPressed: () {
+            provider.clearAlerts();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const InsightsScreen()),
+            );
+          },
+        ),
+        if (alertCount > 0 && provider.showInsightsBadge)
+          Positioned(
+            right: 4,
+            top: 4,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.redAccent,
+                shape: BoxShape.circle,
+              ),
+              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+              child: Text(
+                '$alertCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildUserAvatar(MemoryProvider provider) {
+    final email = provider.userEmail;
+    final plan = provider.userPlan.isEmpty ? 'free' : provider.userPlan;
+    final avatarUrl = provider.userAvatarUrl;
+
+    String initialsFromEmail(String value) {
+      if (value.isEmpty) return "U";
+      final local = value.split('@').first;
+      final parts = local.split('.');
+      final buf = StringBuffer();
+      for (final p in parts) {
+        if (p.isNotEmpty) buf.write(p[0]);
+      }
+      final s = buf.toString().toUpperCase();
+      if (s.isEmpty) return local[0].toUpperCase();
+      return s.length > 2 ? s.substring(0, 2) : s;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: Tooltip(
+        message: email.isEmpty ? "Account ($plan)" : "$email ($plan)",
+        child: CircleAvatar(
+          radius: 14,
+          backgroundImage:
+              avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+          backgroundColor: const Color(0xFFE5E7EB),
+          child: avatarUrl.isEmpty
+              ? Text(
+                  initialsFromEmail(email),
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                )
+              : null,
         ),
       ),
     );

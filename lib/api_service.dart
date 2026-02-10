@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
 
@@ -42,6 +44,26 @@ class ApiService {
     };
   }
 
+  /// Fetch current user profile (email, plan, avatar, usage) using API key auth.
+  Future<Map<String, dynamic>> fetchMe() async {
+    final response = await _dio.get("/me");
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    if (data is String) {
+      try {
+        final decoded = jsonDecode(data);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+      } catch (_) {
+        // ignore parse errors
+      }
+    }
+    return {};
+  }
+
   /// Returns response body with idempotent_key, memory_id, etc.
   Future<Map<String, dynamic>> syncMemory({
     required String handle,
@@ -66,6 +88,23 @@ class ApiService {
       return body;
     }
     return {"idempotent_key": keyToUse};
+  }
+
+  /// Fetch the reasoning ruleset JSON from the server.
+  ///
+  /// Returns the raw JSON string representation so it can be fed directly
+  /// into RuleSet.fromJsonString on the client side. If the server returns
+  /// a decoded JSON object, it will be re-encoded.
+  Future<String?> fetchRulesetJson() async {
+    final response = await _dio.get("/ruleset");
+    final data = response.data;
+    if (data == null) return null;
+    if (data is String) return data;
+    try {
+      return jsonEncode(data);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Delete a memory by id. May throw if server does not support or fails.

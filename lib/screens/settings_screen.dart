@@ -159,6 +159,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 border: OutlineInputBorder(),
               ),
             ),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 10),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Insights & Notifications",
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              title: const Text("Show red badge on Insights"),
+              subtitle: const Text(
+                "Display the number of rules with non-empty results in the app bar.",
+              ),
+              value: provider.showInsightsBadge,
+              onChanged: (value) {
+                provider.updateShowInsightsBadge(value);
+              },
+            ),
+            SwitchListTile(
+              title: const Text("Enable haptics for new insights"),
+              subtitle: const Text(
+                "Light vibration / click when new high-priority insights appear (when supported by device).",
+              ),
+              value: provider.alertHapticsEnabled,
+              onChanged: (value) {
+                provider.updateAlertHaptics(value);
+              },
+            ),
             const SizedBox(height: 30),
             ElevatedButton(
               onPressed: () async {

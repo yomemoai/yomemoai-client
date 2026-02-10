@@ -1,0 +1,360 @@
+{
+  "meta": {
+    "id": "yomemo-core-v1",
+    "name": "YoMemo Core Rules",
+    "version": "1.0.0",
+    "updated_at": "2026-02-10T09:00:00Z",
+    "author": "yomemo",
+    "description": "Default reasoning ruleset for yomemo client. Covers conflict detection, productivity insights, emotional awareness, and cross-domain discovery."
+  },
+
+  "fact_schema": [
+    {
+      "predicate": "memory",
+      "arity": 3,
+      "args": [
+        { "name": "ID",          "type": "id" },
+        { "name": "Handle",      "type": "atom" },
+        { "name": "Description", "type": "string" }
+      ],
+      "description": "Core memory fact."
+    },
+    {
+      "predicate": "elap",
+      "arity": 5,
+      "args": [
+        { "name": "ID", "type": "id" },
+        { "name": "E",  "type": "number" },
+        { "name": "L",  "type": "number" },
+        { "name": "A",  "type": "number" },
+        { "name": "P",  "type": "number" }
+      ],
+      "description": "ELAP multi-dimensional score: Emotion, Logic, Abstraction, Pragmatism (0.0-1.0)."
+    },
+    {
+      "predicate": "classification",
+      "arity": 2,
+      "args": [
+        { "name": "ID",    "type": "id" },
+        { "name": "Layer", "type": "atom" }
+      ],
+      "description": "Knowledge layer classification (L1-L5)."
+    },
+    {
+      "predicate": "tag",
+      "arity": 2,
+      "args": [
+        { "name": "ID",  "type": "id" },
+        { "name": "Tag", "type": "atom" }
+      ],
+      "description": "Memory tag (one-to-many)."
+    },
+    {
+      "predicate": "ontology",
+      "arity": 3,
+      "args": [
+        { "name": "ID",         "type": "id" },
+        { "name": "Mode",       "type": "atom" },
+        { "name": "Dependency", "type": "string" }
+      ],
+      "description": "Ontology relation: mode (Evolving/Conditional/Invariant) and dependency."
+    },
+    {
+      "predicate": "vcs",
+      "arity": 4,
+      "args": [
+        { "name": "ID",     "type": "id" },
+        { "name": "Stack",  "type": "string" },
+        { "name": "Status", "type": "atom" },
+        { "name": "Bounds", "type": "string" }
+      ],
+      "description": "Version control status: Active, Backlog, Concept, Draft, etc."
+    },
+    {
+      "predicate": "fact_deconstruction",
+      "arity": 2,
+      "args": [
+        { "name": "ID",   "type": "id" },
+        { "name": "Text", "type": "string" }
+      ],
+      "description": "Extracted factual content."
+    },
+    {
+      "predicate": "sentiment_deconstruction",
+      "arity": 2,
+      "args": [
+        { "name": "ID",   "type": "id" },
+        { "name": "Text", "type": "string" }
+      ],
+      "description": "Sentiment analysis text."
+    }
+  ],
+
+  "prolog_source": "% YoMemo Core Rules v1.0.0\n\ndetail(ID, Handle, Desc, Layer, Mode, Status) :-\n    memory(ID, Handle, Desc),\n    classification(ID, Layer),\n    ontology(ID, Mode, _),\n    vcs(ID, _, Status, _).\n\nhigh_value(ID, Handle, Score) :-\n    memory(ID, Handle, _),\n    elap(ID, _, L, A, P),\n    Score is L + A + P,\n    Score > 2.0.\n\nroi(ID, Handle, Score) :-\n    memory(ID, Handle, _),\n    elap(ID, E, L, _, P),\n    Score is (P * L) / (1 + E).\n\nbacklog_feature(ID, Handle, Desc) :-\n    memory(ID, Handle, Desc),\n    tag(ID, 'feature'),\n    vcs(ID, _, 'Backlog', _).\n\nemotional_memory(ID, Handle, E, Desc) :-\n    memory(ID, Handle, Desc),\n    elap(ID, E, _, _, _),\n    E > 0.6.\n\nyomemo_item(ID, Handle, Desc, Status) :-\n    memory(ID, Handle, Desc),\n    tag(ID, 'yomemo'),\n    vcs(ID, _, Status, _).\n\nfocus_conflict(PlanID, OtherID, OtherHandle, OtherDesc) :-\n    memory(PlanID, 'plan', _),\n    tag(PlanID, 'focus'),\n    vcs(PlanID, _, 'Active', _),\n    memory(OtherID, OtherHandle, OtherDesc),\n    PlanID \\= OtherID,\n    OtherHandle \\= 'plan',\n    OtherHandle \\= 'user-goals',\n    vcs(OtherID, _, OtherStatus, _),\n    OtherStatus \\= 'Backlog',\n    OtherStatus \\= 'Active'.\n\nconnected(ID1, H1, ID2, H2, Tag) :-\n    tag(ID1, Tag),\n    tag(ID2, Tag),\n    ID1 @< ID2,\n    memory(ID1, H1, _),\n    memory(ID2, H2, _),\n    H1 \\= H2,\n    Tag \\= 'yomemo'.\n\nactionable(ID, Handle, Desc, P) :-\n    memory(ID, Handle, Desc),\n    elap(ID, _, _, _, P),\n    P >= 0.8,\n    vcs(ID, _, 'Active', _).\n",
+
+  "rules": [
+    {
+      "id": "overview",
+      "name": "Overview",
+      "name_zh": "总览",
+      "description": "Structured summary of all memories with metadata.",
+      "description_zh": "所有记忆的结构化总览：领域、分层、状态。",
+      "query": "detail(ID, Handle, Desc, Layer, Mode, Status).",
+      "result_vars": [
+        { "name": "ID",     "type": "id",     "display_name": "Memory ID",    "display_name_zh": "记忆 ID" },
+        { "name": "Handle", "type": "atom",   "display_name": "Domain",       "display_name_zh": "领域" },
+        { "name": "Desc",   "type": "string", "display_name": "Description",  "display_name_zh": "描述" },
+        { "name": "Layer",  "type": "atom",   "display_name": "Layer",        "display_name_zh": "分层" },
+        { "name": "Mode",   "type": "atom",   "display_name": "Ontology",     "display_name_zh": "本体模式" },
+        { "name": "Status", "type": "atom",   "display_name": "Status",       "display_name_zh": "状态" }
+      ],
+      "ui": {
+        "type": "tab",
+        "icon": "list_alt",
+        "color": "#6366f1",
+        "group_position": "primary",
+        "empty_message": "No memories in knowledge base.",
+        "empty_message_zh": "知识库中没有记忆。"
+      },
+      "trigger": { "type": "on_demand" },
+      "priority": "low",
+      "category": "overview",
+      "enabled": true
+    },
+
+    {
+      "id": "focus_conflict",
+      "name": "Focus Conflict",
+      "name_zh": "焦点冲突",
+      "description": "Detects items that conflict with your current focus plan. Items not in Backlog and not Active suggest unresolved priority decisions.",
+      "description_zh": "检测与当前聚焦计划冲突的项目。未归入 Backlog 也未设为 Active 的项目，意味着优先级决策尚未落地。",
+      "query": "focus_conflict(PlanID, OtherID, Handle, Desc).",
+      "result_vars": [
+        { "name": "PlanID",  "type": "id",     "display_name": "Plan",        "display_name_zh": "计划", "hidden": true },
+        { "name": "OtherID", "type": "id",     "display_name": "Conflict ID", "display_name_zh": "冲突项 ID" },
+        { "name": "Handle",  "type": "atom",   "display_name": "Domain",      "display_name_zh": "领域" },
+        { "name": "Desc",    "type": "string", "display_name": "Description", "display_name_zh": "描述" }
+      ],
+      "ui": {
+        "type": "alert",
+        "icon": "warning",
+        "color": "#f59e0b",
+        "group_position": "primary",
+        "empty_message": "No focus conflicts detected. You're aligned.",
+        "empty_message_zh": "没有焦点冲突，当前方向一致。"
+      },
+      "trigger": {
+        "type": "on_new_memory",
+        "debounce_ms": 500,
+        "conditions": {
+          "tags": ["plan", "focus"]
+        }
+      },
+      "priority": "critical",
+      "category": "conflict",
+      "enabled": true
+    },
+
+    {
+      "id": "high_value",
+      "name": "High Value",
+      "name_zh": "高价值记忆",
+      "description": "Memories where Logic + Abstraction + Pragmatism exceeds 2.0. Worth concentrated attention.",
+      "description_zh": "逻辑 + 抽象 + 实用性总分超过 2.0 的记忆，值得集中精力投入。",
+      "query": "high_value(ID, Handle, Score).",
+      "result_vars": [
+        { "name": "ID",     "type": "id",     "display_name": "Memory ID", "display_name_zh": "记忆 ID" },
+        { "name": "Handle", "type": "atom",   "display_name": "Domain",    "display_name_zh": "领域" },
+        { "name": "Score",  "type": "number", "display_name": "L+A+P",     "display_name_zh": "综合得分" }
+      ],
+      "ui": {
+        "type": "tab",
+        "icon": "star",
+        "color": "#6366f1",
+        "sort_by": "Score",
+        "sort_order": "desc",
+        "group_position": "secondary",
+        "empty_message": "No high-value memories found.",
+        "empty_message_zh": "没有高价值记忆。"
+      },
+      "trigger": { "type": "on_demand" },
+      "priority": "medium",
+      "category": "insight",
+      "enabled": true
+    },
+
+    {
+      "id": "roi_ranking",
+      "name": "ROI Ranking",
+      "name_zh": "ROI 排名",
+      "description": "ROI = (Pragmatism x Logic) / (1 + Emotion). Ranks memories by rational investment value.",
+      "description_zh": "ROI = (实用性 x 逻辑性) / (1 + 情感)。按理性投入产出比排序。",
+      "query": "roi(ID, Handle, Score).",
+      "result_vars": [
+        { "name": "ID",     "type": "id",     "display_name": "Memory ID", "display_name_zh": "记忆 ID" },
+        { "name": "Handle", "type": "atom",   "display_name": "Domain",    "display_name_zh": "领域" },
+        { "name": "Score",  "type": "number", "display_name": "ROI",       "display_name_zh": "ROI 值" }
+      ],
+      "ui": {
+        "type": "dashboard",
+        "icon": "bar_chart",
+        "color": "#22c55e",
+        "sort_by": "Score",
+        "sort_order": "desc",
+        "group_position": "secondary",
+        "empty_message": "No memories to rank.",
+        "empty_message_zh": "没有可排名的记忆。"
+      },
+      "trigger": { "type": "on_demand" },
+      "priority": "medium",
+      "category": "productivity",
+      "enabled": true
+    },
+
+    {
+      "id": "backlog_features",
+      "name": "Backlog Features",
+      "name_zh": "待办功能",
+      "description": "Feature ideas tagged 'feature' with Backlog status. Your product idea bank.",
+      "description_zh": "标记为 feature 且状态为 Backlog 的功能点——你的产品创意库。",
+      "query": "backlog_feature(ID, Handle, Desc).",
+      "result_vars": [
+        { "name": "ID",     "type": "id",     "display_name": "Memory ID",   "display_name_zh": "记忆 ID" },
+        { "name": "Handle", "type": "atom",   "display_name": "Domain",      "display_name_zh": "领域" },
+        { "name": "Desc",   "type": "string", "display_name": "Description", "display_name_zh": "描述" }
+      ],
+      "ui": {
+        "type": "badge",
+        "icon": "inventory_2",
+        "color": "#8b5cf6",
+        "group_position": "secondary",
+        "empty_message": "Backlog is empty!",
+        "empty_message_zh": "待办列表为空！"
+      },
+      "trigger": { "type": "on_app_open" },
+      "priority": "low",
+      "category": "productivity",
+      "enabled": true
+    },
+
+    {
+      "id": "emotional_memories",
+      "name": "Emotional Memories",
+      "name_zh": "高情感记忆",
+      "description": "Memories with Emotion > 0.6. These carry important personal context or signal areas needing reflection.",
+      "description_zh": "情感指数 > 0.6 的记忆。它们承载重要的个人上下文，可能需要你花时间反思。",
+      "query": "emotional_memory(ID, Handle, E, Desc).",
+      "result_vars": [
+        { "name": "ID",     "type": "id",     "display_name": "Memory ID", "display_name_zh": "记忆 ID" },
+        { "name": "Handle", "type": "atom",   "display_name": "Domain",    "display_name_zh": "领域" },
+        { "name": "E",      "type": "number", "display_name": "Emotion",   "display_name_zh": "情感指数" },
+        { "name": "Desc",   "type": "string", "display_name": "Description", "display_name_zh": "描述" }
+      ],
+      "ui": {
+        "type": "card",
+        "icon": "favorite",
+        "color": "#ec4899",
+        "sort_by": "E",
+        "sort_order": "desc",
+        "group_position": "secondary",
+        "empty_message": "No highly emotional memories.",
+        "empty_message_zh": "没有高情感记忆。"
+      },
+      "trigger": {
+        "type": "periodic",
+        "interval_minutes": 1440
+      },
+      "priority": "medium",
+      "category": "health",
+      "enabled": true
+    },
+
+    {
+      "id": "yomemo_ecosystem",
+      "name": "YoMemo Ecosystem",
+      "name_zh": "YoMemo 生态",
+      "description": "All yomemo-tagged memories across handles. The full project landscape.",
+      "description_zh": "所有打了 yomemo 标签的记忆，跨领域展示项目全貌。",
+      "query": "yomemo_item(ID, Handle, Desc, Status).",
+      "result_vars": [
+        { "name": "ID",     "type": "id",     "display_name": "Memory ID",   "display_name_zh": "记忆 ID" },
+        { "name": "Handle", "type": "atom",   "display_name": "Domain",      "display_name_zh": "领域" },
+        { "name": "Desc",   "type": "string", "display_name": "Description", "display_name_zh": "描述" },
+        { "name": "Status", "type": "atom",   "display_name": "Status",      "display_name_zh": "状态" }
+      ],
+      "ui": {
+        "type": "tab",
+        "icon": "hub",
+        "color": "#6366f1",
+        "group_position": "secondary",
+        "empty_message": "No yomemo-tagged memories.",
+        "empty_message_zh": "没有 yomemo 相关的记忆。"
+      },
+      "trigger": { "type": "on_demand" },
+      "priority": "low",
+      "category": "overview",
+      "enabled": true
+    },
+
+    {
+      "id": "cross_domain",
+      "name": "Cross-domain Connections",
+      "name_zh": "跨域关联",
+      "description": "Memory pairs from different domains sharing a non-trivial tag. Reveals hidden associations you might not notice.",
+      "description_zh": "来自不同领域但共享标签的记忆对。发现你可能未察觉的隐性关联。",
+      "query": "connected(ID1, H1, ID2, H2, Tag).",
+      "result_vars": [
+        { "name": "ID1", "type": "id",   "display_name": "Memory A",  "display_name_zh": "记忆 A" },
+        { "name": "H1",  "type": "atom", "display_name": "Domain A",  "display_name_zh": "领域 A" },
+        { "name": "ID2", "type": "id",   "display_name": "Memory B",  "display_name_zh": "记忆 B" },
+        { "name": "H2",  "type": "atom", "display_name": "Domain B",  "display_name_zh": "领域 B" },
+        { "name": "Tag", "type": "atom", "display_name": "Shared Tag", "display_name_zh": "共享标签" }
+      ],
+      "ui": {
+        "type": "card",
+        "icon": "link",
+        "color": "#3b82f6",
+        "max_results": 10,
+        "group_position": "secondary",
+        "empty_message": "No cross-domain connections found.",
+        "empty_message_zh": "没有发现跨域关联。"
+      },
+      "trigger": {
+        "type": "on_new_memory",
+        "debounce_ms": 1000
+      },
+      "priority": "high",
+      "category": "insight",
+      "enabled": true
+    },
+
+    {
+      "id": "actionable",
+      "name": "Actionable Now",
+      "name_zh": "当前可执行",
+      "description": "High pragmatism (P >= 0.8) + Active status. These are what you should be doing right now.",
+      "description_zh": "实用性 >= 0.8 且状态为 Active。这些是你现在应该做的事。",
+      "query": "actionable(ID, Handle, Desc, P).",
+      "result_vars": [
+        { "name": "ID",     "type": "id",     "display_name": "Memory ID",   "display_name_zh": "记忆 ID" },
+        { "name": "Handle", "type": "atom",   "display_name": "Domain",      "display_name_zh": "领域" },
+        { "name": "Desc",   "type": "string", "display_name": "Description", "display_name_zh": "描述" },
+        { "name": "P",      "type": "number", "display_name": "Pragmatism",  "display_name_zh": "实用性" }
+      ],
+      "ui": {
+        "type": "banner",
+        "icon": "rocket_launch",
+        "color": "#22c55e",
+        "sort_by": "P",
+        "sort_order": "desc",
+        "group_position": "primary",
+        "empty_message": "Nothing actionable right now.",
+        "empty_message_zh": "当前没有可执行的项目。"
+      },
+      "trigger": { "type": "on_app_open" },
+      "priority": "high",
+      "category": "productivity",
+      "enabled": true
+    }
+  ]
+}
