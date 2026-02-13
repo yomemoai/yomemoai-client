@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../memory_provider.dart';
+import '../utils/handle_display.dart';
 import 'settings_screen.dart';
 import 'editor_screen.dart';
 import 'memory_detail_screen.dart';
@@ -17,8 +19,15 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+const String _kExpandedPrefixesKey = 'home_expanded_prefixes';
+const String _kDefaultExpandedPrefixesKey = 'default_expanded_prefixes';
+
 class _HomeScreenState extends State<HomeScreen> {
   final Set<String> _expandedHandles = {};
+  /// Prefix groups expanded (e.g. yomemo, voice). Persisted.
+  Set<String> _expandedPrefixes = {};
+  /// For each expanded prefix, which handle is selected (null = All).
+  final Map<String, String?> _selectedHandleByPrefix = {};
   Offset? _lastTapPosition;
   final GlobalKey _helpKey = GlobalKey();
   final GlobalKey _avatarKey = GlobalKey();
@@ -30,6 +39,21 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _scrollController.addListener(_onScroll);
     _searchController.addListener(_onSearchChanged);
+    _loadExpandedPrefixes();
+  }
+
+  Future<void> _loadExpandedPrefixes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_kExpandedPrefixesKey);
+    final Set<String> next = saved != null
+        ? saved.toSet()
+        : (prefs.getStringList(_kDefaultExpandedPrefixesKey) ?? []).toSet();
+    if (mounted) setState(() => _expandedPrefixes = next);
+  }
+
+  Future<void> _saveExpandedPrefixes() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kExpandedPrefixesKey, _expandedPrefixes.toList());
   }
 
   @override
@@ -72,13 +96,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.settings),
-                  onPressed: () {
-                    Navigator.push(
+                  onPressed: () async {
+                    await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const SettingsScreen(),
                       ),
                     );
+                    if (mounted) {
+                      await _loadExpandedPrefixes();
+                      if (mounted) setState(() {});
+                    }
                   },
                 ),
                 if (provider.userEmail.isNotEmpty ||
@@ -99,13 +127,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.settings),
-                  onPressed: () {
-                    Navigator.push(
+                  onPressed: () async {
+                    await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const SettingsScreen(),
                       ),
                     );
+                    if (mounted) {
+                      await _loadExpandedPrefixes();
+                      if (mounted) setState(() {});
+                    }
                   },
                 ),
                 if (provider.userEmail.isNotEmpty ||
@@ -117,7 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Autocomplete<MapEntry<String, int>>(
+            child:             Autocomplete<MapEntry<String, int>>(
               displayStringForOption: (MapEntry<String, int> option) => option.key,
               optionsBuilder: (TextEditingValue textEditingValue) {
                 if (textEditingValue.text.isEmpty) {
@@ -193,8 +225,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemCount: options.length,
                         itemBuilder: (BuildContext context, int index) {
                           final option = options.elementAt(index);
+                          final display = handleDisplay(option.key);
                           return ListTile(
-                            title: Text(option.key),
+                            leading: Icon(display.icon, size: 20, color: Colors.blueGrey[600]),
+                            title: Text(display.sectionTitle),
+                            subtitle: option.key != display.sectionTitle
+                                ? Text(option.key, style: TextStyle(fontSize: 12, color: Colors.blueGrey[500]))
+                                : null,
                             trailing: Text("(${option.value})"),
                             onTap: () {
                               onSelected(option);
@@ -400,23 +437,55 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildGroupedList(BuildContext context, List<MemoryItem> items) {
-    final grouped = <String, List<MemoryItem>>{};
+    // Group by prefix -> handle -> items
+    final byPrefix = <String, Map<String, List<MemoryItem>>>{};
     for (final item in items) {
-      grouped.putIfAbsent(item.handle, () => []).add(item);
+      final prefix = handlePrefix(item.handle);
+      byPrefix.putIfAbsent(prefix, () => {}).putIfAbsent(item.handle, () => []).add(item);
     }
-    final handles = grouped.keys.toList()..sort();
+    final prefixes = byPrefix.keys.toList()
+      ..sort((a, b) {
+        final oa = prefixOrder(a);
+        final ob = prefixOrder(b);
+        if (oa != ob) return oa.compareTo(ob);
+        return a.compareTo(b);
+      });
 
     final List<Widget> rows = [];
     final provider = context.watch<MemoryProvider>();
-    rows.add(_buildSummary(context, provider.totalCount, handles.length));
-    for (final handle in handles) {
-      final isExpanded = _expandedHandles.contains(handle);
-      rows.add(
-        _buildHandleSectionHeader(handle, grouped[handle]!.length, isExpanded),
-      );
-      if (isExpanded) {
-        for (final item in grouped[handle]!) {
-          rows.add(_buildDismissibleMemoryCard(context, item));
+    final totalHandles = items.map((e) => e.handle).toSet().length;
+    rows.add(_buildSummary(context, provider.totalCount, totalHandles));
+
+    for (final prefix in prefixes) {
+      final handleToItems = byPrefix[prefix]!;
+      final handles = handleToItems.keys.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      final totalCount = handleToItems.values.fold<int>(0, (s, list) => s + list.length);
+      final isPrefixExpanded = _expandedPrefixes.contains(prefix);
+      final selectedHandle = _selectedHandleByPrefix[prefix];
+
+      rows.add(_buildPrefixHeader(prefix, handles, totalCount, isPrefixExpanded));
+      if (isPrefixExpanded) {
+        rows.add(_buildHandleChipBar(prefix, handles, handleToItems, selectedHandle));
+        if (selectedHandle != null) {
+          final list = handleToItems[selectedHandle] ?? [];
+          final isHandleExpanded = _expandedHandles.contains(selectedHandle);
+          rows.add(_buildHandleSectionHeader(selectedHandle, list.length, isHandleExpanded));
+          if (isHandleExpanded) {
+            for (final item in list) {
+              rows.add(_buildDismissibleMemoryCard(context, item));
+            }
+          }
+        } else {
+          for (final handle in handles) {
+            final list = handleToItems[handle]!;
+            final isHandleExpanded = _expandedHandles.contains(handle);
+            rows.add(_buildHandleSectionHeader(handle, list.length, isHandleExpanded));
+            if (isHandleExpanded) {
+              for (final item in list) {
+                rows.add(_buildDismissibleMemoryCard(context, item));
+              }
+            }
+          }
         }
       }
     }
@@ -432,6 +501,134 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Center(child: CircularProgressIndicator()),
           ),
       ],
+    );
+  }
+
+  Widget _buildPrefixHeader(String prefix, List<String> handles, int totalCount, bool isExpanded) {
+    final display = handleDisplay(handles.isNotEmpty ? handles.first : prefix);
+    final name = prefix.isEmpty ? 'other' : prefix;
+    final cap = name.length > 1 ? '${name[0].toUpperCase()}${name.substring(1)}' : name.toUpperCase();
+    return InkWell(
+      onTap: () {
+        setState(() {
+          if (isExpanded) {
+            _expandedPrefixes.remove(prefix);
+          } else {
+            _expandedPrefixes.add(prefix);
+          }
+          _saveExpandedPrefixes();
+        });
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(top: 10, bottom: 6),
+        child: Row(
+          children: [
+            Icon(
+              isExpanded ? Icons.expand_more : Icons.chevron_right,
+              size: 20,
+              color: Colors.blueGrey[600],
+            ),
+            const SizedBox(width: 4),
+            Icon(display.icon, size: 18, color: Colors.blueGrey[600]),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                cap,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  color: Colors.blueGrey[800],
+                ),
+              ),
+            ),
+            Text(
+              '$totalCount',
+              style: TextStyle(fontSize: 13, color: Colors.blueGrey[500]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHandleChipBar(
+    String prefix,
+    List<String> handles,
+    Map<String, List<MemoryItem>> handleToItems,
+    String? selectedHandle,
+  ) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final selectedBg = isDark ? Colors.white12 : Colors.blueGrey.shade100;
+    final unselectedBg = Colors.transparent;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _minimalChip(
+              label: 'All',
+              selected: selectedHandle == null,
+              onTap: () => setState(() => _selectedHandleByPrefix[prefix] = null),
+              selectedBg: selectedBg,
+              unselectedBg: unselectedBg,
+            ),
+            ...handles.map((handle) {
+              final count = (handleToItems[handle] ?? []).length;
+              final display = handleDisplay(handle);
+              final selected = selectedHandle == handle;
+              return _minimalChip(
+                label: '${display.label} ($count)',
+                selected: selected,
+                onTap: () {
+                  setState(() {
+                    _selectedHandleByPrefix[prefix] = handle;
+                    _expandedHandles.add(handle);
+                  });
+                },
+                selectedBg: selectedBg,
+                unselectedBg: unselectedBg,
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _minimalChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    required Color selectedBg,
+    required Color unselectedBg,
+  }) {
+    final textColor = Theme.of(context).brightness == Brightness.dark
+        ? Colors.blueGrey[200]
+        : Colors.blueGrey[800];
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: Material(
+        color: selected ? selectedBg : unselectedBg,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: textColor,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -638,6 +835,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHandleSectionHeader(String handle, int count, bool isExpanded) {
+    final display = handleDisplay(handle);
     return InkWell(
       onTap: () {
         setState(() {
@@ -649,34 +847,36 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       },
       child: Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 6),
+        padding: const EdgeInsets.only(top: 6, bottom: 4, left: 4),
         child: Row(
           children: [
             Icon(
-              isExpanded ? Icons.folder_open : Icons.folder_outlined,
-              size: 20,
-              color: Colors.blueGrey[700],
+              isExpanded ? Icons.expand_more : Icons.chevron_right,
+              size: 18,
+              color: Colors.blueGrey[500],
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
             Expanded(
-              child: Text(
-                handle,
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                  color: Colors.blueGrey[800],
+              child: Tooltip(
+                message: handle,
+                child: Text(
+                  display.sectionTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    color: Colors.blueGrey[700],
+                  ),
                 ),
               ),
             ),
-            if (count > 1)
-              Text(
-                "($count)",
-                style: TextStyle(fontSize: 13, color: Colors.blueGrey[600]),
-              ),
-            const SizedBox(width: 8),
+            Text(
+              '$count',
+              style: TextStyle(fontSize: 12, color: Colors.blueGrey[500]),
+            ),
             if (isExpanded) ...[
+              const SizedBox(width: 4),
               IconButton(
-                icon: const Icon(Icons.add_circle_outline),
+                icon: Icon(Icons.add, size: 18, color: Colors.blueGrey[600]),
                 tooltip: "Add memory in this handle",
                 onPressed: () {
                   Navigator.push(
@@ -688,16 +888,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               IconButton(
-                icon: Icon(Icons.delete_forever_outlined, color: Colors.red.shade400),
+                icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
                 tooltip: "Delete all in this handle",
                 onPressed: () => _confirmDeleteHandle(context, handle, count),
               ),
             ],
-            Icon(
-              isExpanded ? Icons.expand_less : Icons.expand_more,
-              size: 18,
-              color: Colors.blueGrey[600],
-            ),
           ],
         ),
       ),
@@ -783,11 +978,14 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListTile(
           contentPadding: const EdgeInsets.all(16),
           title: showHandle
-              ? Text(
-                  item.handle,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+              ? Tooltip(
+                  message: item.handle,
+                  child: Text(
+                    handleDisplay(item.handle).sectionTitle,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
                 )
               : null,
@@ -814,9 +1012,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          leading: item.handle.startsWith('voice-')
-              ? Icon(Icons.mic, color: Colors.blueGrey[600], size: 22)
-              : null,
+          leading: Icon(
+            handleDisplay(item.handle).icon,
+            color: Colors.blueGrey[600],
+            size: 22,
+          ),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

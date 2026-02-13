@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../memory_provider.dart';
+import '../utils/handle_display.dart';
 import 'editor_screen.dart';
 
 class MemoryDetailScreen extends StatelessWidget {
@@ -43,9 +44,17 @@ class MemoryDetailScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              item.handle,
+              handleDisplay(item.handle).sectionTitle,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
+            if (item.handle != handleDisplay(item.handle).sectionTitle)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  item.handle,
+                  style: TextStyle(fontSize: 12, color: Colors.blueGrey[500]),
+                ),
+              ),
             if (item.description.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(

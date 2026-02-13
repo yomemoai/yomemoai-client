@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../memory_provider.dart';
 import '../save_memories_pl.dart';
 
@@ -12,6 +13,19 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
+const String _kDefaultExpandedPrefixesKey = 'default_expanded_prefixes';
+const String _kHomeExpandedPrefixesKey = 'home_expanded_prefixes';
+
+/// Prefix options for "default expanded groups" (same order as handle_display).
+const List<MapEntry<String, String>> _defaultExpandedOptions = [
+  MapEntry('voice', 'Voice'),
+  MapEntry('daily', 'Daily'),
+  MapEntry('yomemo', 'YoMemo'),
+  MapEntry('plan', 'Plan'),
+  MapEntry('goals', 'Goals'),
+  MapEntry('other', 'Other'),
+];
+
 class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _keyCtrl;
   late TextEditingController _newPwdCtrl;
@@ -20,10 +34,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _autoSaveCtrl;
   String _path = "";
   String _existingKey = "";
+  Set<String> _defaultExpanded = {};
 
   @override
   void initState() {
     super.initState();
+    _loadDefaultExpandedPrefixes();
     final p = context.read<MemoryProvider>();
     _existingKey = p.apiKey;
     _keyCtrl = TextEditingController();
@@ -44,6 +60,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _confirmPwdCtrl = TextEditingController();
     _timeoutCtrl = TextEditingController(text: p.lockTimeoutMinutes.toString());
     _autoSaveCtrl = TextEditingController(text: p.autoSaveSeconds.toString());
+  }
+
+  Future<void> _loadDefaultExpandedPrefixes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_kDefaultExpandedPrefixesKey);
+    if (mounted) setState(() => _defaultExpanded = (list ?? []).toSet());
+  }
+
+  Future<void> _saveDefaultExpandedPrefixes(Set<String> value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kDefaultExpandedPrefixesKey, value.toList());
+  }
+
+  Future<void> _resetHomeToDefault() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_kHomeExpandedPrefixesKey, _defaultExpanded.toList());
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Home expanded groups reset to default. Return to Home to see the change.")),
+      );
+    }
   }
 
   @override
@@ -161,6 +198,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 helperText: "Also saves on blur. Range: 1-300",
                 border: OutlineInputBorder(),
               ),
+            ),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 10),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Home: Default expanded groups",
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              "Which groups (by handle prefix) are expanded by default on first open. After you expand/collapse on Home, your choice is remembered.",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: _defaultExpandedOptions.map((e) {
+                final key = e.key;
+                final label = e.value;
+                final selected = _defaultExpanded.contains(key);
+                return FilterChip(
+                  label: Text(label),
+                  selected: selected,
+                  onSelected: (v) async {
+                    final next = Set<String>.from(_defaultExpanded);
+                    if (v) {
+                      next.add(key);
+                    } else {
+                      next.remove(key);
+                    }
+                    setState(() => _defaultExpanded = next);
+                    await _saveDefaultExpandedPrefixes(next);
+                  },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text("Reset Home to this default"),
+              onPressed: () => _resetHomeToDefault(),
             ),
             const SizedBox(height: 20),
             const Divider(),
