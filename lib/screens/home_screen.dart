@@ -21,24 +21,35 @@ class _HomeScreenState extends State<HomeScreen> {
   final Set<String> _expandedHandles = {};
   Offset? _lastTapPosition;
   final GlobalKey _helpKey = GlobalKey();
+  final GlobalKey _avatarKey = GlobalKey();
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text;
+    context.read<MemoryProvider>().setHandleSearchQuery(query);
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MemoryProvider>();
+    final bool isIOS = defaultTargetPlatform == TargetPlatform.iOS;
     final scaffold = Scaffold(
       appBar: AppBar(
         title: Row(
@@ -51,36 +62,161 @@ class _HomeScreenState extends State<HomeScreen> {
             const Text("Encrypted"),
           ],
         ),
-        actions: [
-          _buildInsightsButton(provider),
-          IconButton(
-            icon: const Icon(Icons.lock),
-            tooltip: "Lock",
-            onPressed: () => provider.lockNow(),
+        actions: isIOS
+            // iOS: 默认展示 Lock / Settings / Avatar，其他菜单通过头像下拉展示。
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.lock),
+                  tooltip: "Lock",
+                  onPressed: () => provider.lockNow(),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                if (provider.userEmail.isNotEmpty ||
+                    provider.userAvatarUrl.isNotEmpty)
+                  _buildUserAvatar(provider, isIOS: true),
+              ]
+            : [
+                _buildInsightsButton(provider),
+                IconButton(
+                  icon: const Icon(Icons.lock),
+                  tooltip: "Lock",
+                  onPressed: () => provider.lockNow(),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.help_outline),
+                  key: _helpKey,
+                  onPressed: () => _showHelp(context),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+                if (provider.userEmail.isNotEmpty ||
+                    provider.userAvatarUrl.isNotEmpty)
+                  _buildUserAvatar(provider, isIOS: false),
+              ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Autocomplete<MapEntry<String, int>>(
+              displayStringForOption: (MapEntry<String, int> option) => option.key,
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                if (textEditingValue.text.isEmpty) {
+                  return const Iterable<MapEntry<String, int>>.empty();
+                }
+                final provider = context.read<MemoryProvider>();
+                return provider.handleCounts.entries.where((entry) {
+                  return entry.key.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                }).toList()..sort((a,b) => b.value.compareTo(a.value)); // Sort by count descending
+              },
+              onSelected: (MapEntry<String, int> selection) {
+                // When an option is selected, update our _searchController
+                _searchController.text = selection.key;
+                // _onSearchChanged will be triggered by _searchController's listener
+              },
+              fieldViewBuilder: (BuildContext context,
+                  TextEditingController textEditingController,
+                  FocusNode focusNode,
+                  VoidCallback onFieldSubmitted) {
+                // This ensures that the TextFormField's controller (textEditingController)
+                // is always showing the same text as our _searchController.
+                // This handles cases where _searchController might be updated programmatically.
+                if (textEditingController.text != _searchController.text) {
+                  textEditingController.text = _searchController.text;
+                  // Optionally maintain cursor position
+                  textEditingController.selection = _searchController.selection;
+                }
+
+                return TextFormField(
+                  controller: textEditingController, // Use Autocomplete's controller for UI
+                  focusNode: focusNode,
+                  onChanged: (String value) {
+                    // When user types, update our _searchController
+                    _searchController.text = value;
+                    // _onSearchChanged will be triggered by _searchController's listener
+                  },
+                  decoration: InputDecoration(
+                    hintText: "Search handles...",
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: textEditingController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            // Clear both controllers
+                            textEditingController.clear();
+                            _searchController.clear();
+                            // _onSearchChanged will be triggered by _searchController's listener
+                          },
+                        )
+                      : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: Theme.of(context).inputDecorationTheme.fillColor ?? Colors.grey[200],
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  ),
+                  onFieldSubmitted: (String value) {
+                    onFieldSubmitted();
+                  },
+                );
+              },
+              optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<MapEntry<String, int>> onSelected, Iterable<MapEntry<String, int>> options) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    elevation: 4.0,
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width - 24, // Match padding
+                      child: ListView.builder(
+                        padding: EdgeInsets.zero,
+                        itemCount: options.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final option = options.elementAt(index);
+                          return ListTile(
+                            title: Text(option.key),
+                            trailing: Text("(${option.value})"),
+                            onTap: () {
+                              onSelected(option);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.help_outline),
-            key: _helpKey,
-            onPressed: () => _showHelp(context),
+          Expanded(
+            child: provider.items.isEmpty
+                ? (provider.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildEmptyState())
+                : _buildGroupedList(context, provider.filteredItems),
           ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-            },
-          ),
-          if (provider.userEmail.isNotEmpty || provider.userAvatarUrl.isNotEmpty)
-            _buildUserAvatar(provider),
         ],
       ),
-      body: provider.items.isEmpty
-          ? (provider.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildEmptyState())
-          : _buildGroupedList(context, provider.items),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
@@ -163,7 +299,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildUserAvatar(MemoryProvider provider) {
+  Widget _buildUserAvatar(
+    MemoryProvider provider, {
+    required bool isIOS,
+  }) {
     final email = provider.userEmail;
     final plan = provider.userPlan.isEmpty ? 'free' : provider.userPlan;
     final avatarUrl = provider.userAvatarUrl;
@@ -185,21 +324,26 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.only(right: 4),
       child: Tooltip(
         message: email.isEmpty ? "Account ($plan)" : "$email ($plan)",
-        child: CircleAvatar(
-          radius: 14,
-          backgroundImage:
-              avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
-          backgroundColor: const Color(0xFFE5E7EB),
-          child: avatarUrl.isEmpty
-              ? Text(
-                  initialsFromEmail(email),
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                )
-              : null,
+        child: InkWell(
+          key: _avatarKey,
+          customBorder: const CircleBorder(),
+          onTap: isIOS ? () => _showAvatarMenu(provider) : null,
+          child: CircleAvatar(
+            radius: 14,
+            backgroundImage:
+                avatarUrl.isNotEmpty ? NetworkImage(avatarUrl) : null,
+            backgroundColor: const Color(0xFFE5E7EB),
+            child: avatarUrl.isEmpty
+                ? Text(
+                    initialsFromEmail(email),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  )
+                : null,
+          ),
         ),
       ),
     );
@@ -447,6 +591,49 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (action == "github") {
       await openExternal(githubUrl, "GitHub");
+    }
+  }
+
+  Future<void> _showAvatarMenu(MemoryProvider provider) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final box = _avatarKey.currentContext?.findRenderObject() as RenderBox?;
+    final position = box != null
+        ? box.localToGlobal(Offset.zero)
+        : const Offset(0, 0);
+    final size = box?.size ?? const Size(0, 0);
+    final rect = RelativeRect.fromLTRB(
+      position.dx,
+      position.dy + size.height,
+      overlay.size.width - position.dx,
+      overlay.size.height - position.dy,
+    );
+
+    final action = await showMenu<String>(
+      context: context,
+      position: rect,
+      items: const [
+        PopupMenuItem(
+          value: "insights",
+          child: Text("Insights"),
+        ),
+        PopupMenuItem(
+          value: "help",
+          child: Text("Help & Docs"),
+        ),
+      ],
+    );
+
+    if (!mounted || action == null) return;
+
+    if (action == "insights") {
+      provider.clearAlerts();
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const InsightsScreen()),
+      );
+    } else if (action == "help") {
+      await _showHelp(context);
     }
   }
 

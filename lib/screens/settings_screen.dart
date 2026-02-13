@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../memory_provider.dart';
+import '../save_memories_pl.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -190,6 +193,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 provider.updateAlertHaptics(value);
               },
             ),
+            if (kDebugMode) ...[
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 10),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Developer (debug only)",
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                title: const Text("Download memories.pl"),
+                subtitle: const Text(
+                  "Share/save file (or copies to clipboard if share fails).",
+                ),
+                trailing: const Icon(Icons.download),
+                onTap: () async {
+                  final content = provider.getMemoriesPrologContent();
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await saveMemoriesPl(content);
+                    if (mounted) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text("memories.pl ready (saved or shared)"),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    try {
+                      await Clipboard.setData(ClipboardData(text: content));
+                      if (mounted) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "Share failed; copied to clipboard. Paste and save as memories.pl",
+                            ),
+                            duration: Duration(seconds: 4),
+                          ),
+                        );
+                      }
+                    } catch (_) {
+                      if (mounted) {
+                        messenger.showSnackBar(
+                          SnackBar(content: Text("Save failed: $e")),
+                        );
+                      }
+                    }
+                  }
+                },
+              ),
+              ListTile(
+                title: const Text("Copy memories.pl to clipboard"),
+                subtitle: const Text(
+                  "No plugin; paste into a file and save as memories.pl.",
+                ),
+                trailing: const Icon(Icons.copy),
+                onTap: () async {
+                  final content = provider.getMemoriesPrologContent();
+                  final messenger = ScaffoldMessenger.of(context);
+                  try {
+                    await Clipboard.setData(ClipboardData(text: content));
+                    if (mounted) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text("Copied. Paste into a file and save as memories.pl"),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      messenger.showSnackBar(
+                        SnackBar(content: Text("Copy failed: $e")),
+                      );
+                    }
+                  }
+                },
+              ),
+            ],
             const SizedBox(height: 30),
             ElevatedButton(
               onPressed: () async {

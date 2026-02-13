@@ -22,6 +22,8 @@ class MemoryItem {
   final String id;
   final String handle, description, idempotentKey, content;
   final Map<String, dynamic>? metadata;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   MemoryItem({
     required this.id,
@@ -30,6 +32,8 @@ class MemoryItem {
     required this.idempotentKey,
     required this.content,
     this.metadata,
+    this.createdAt,
+    this.updatedAt,
   });
 
   // --- Semantic Fingerprint accessors (from metadata) ---
@@ -111,6 +115,13 @@ class MemoryProvider extends ChangeNotifier {
   bool _showInsightsBadge = true;
   bool _alertHapticsEnabled = false;
 
+  String _handleSearchQuery = '';
+
+  void setHandleSearchQuery(String query) {
+    _handleSearchQuery = query.trim().toLowerCase();
+    notifyListeners();
+  }
+
   // ───────── Rule Engine & Triggers ─────────
   late final RuleEngine ruleEngine = RuleEngine(apiService: _api);
   Timer? _periodicRuleTimer;
@@ -144,6 +155,31 @@ class MemoryProvider extends ChangeNotifier {
   String get userAvatarUrl => _userAvatarUrl;
   bool get showInsightsBadge => _showInsightsBadge;
   bool get alertHapticsEnabled => _alertHapticsEnabled;
+
+  List<MemoryItem> get filteredItems {
+    if (_handleSearchQuery.isEmpty) {
+      return items;
+    }
+    return items
+        .where((item) => item.handle.toLowerCase().contains(_handleSearchQuery))
+        .toList();
+  }
+
+  List<String> get uniqueHandles {
+    return items.map((item) => item.handle).toSet().toList()..sort((a,b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  }
+
+  Map<String, int> get handleCounts {
+    final counts = <String, int>{};
+    for (var item in items) {
+      counts[item.handle] = (counts[item.handle] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /// Full Prolog program (facts + rules) for debug; use with "Download memories.pl".
+  String getMemoriesPrologContent() =>
+      ruleEngine.exportMemoriesProlog(items);
 
   Future<void> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -437,6 +473,13 @@ class MemoryProvider extends ChangeNotifier {
         final Map<String, dynamic>? meta =
             j['metadata'] is Map ? Map<String, dynamic>.from(j['metadata'] as Map) : null;
 
+        final DateTime? createdAt = j.containsKey('created_at') && j['created_at'] != null
+            ? DateTime.tryParse(j['created_at'].toString())
+            : null;
+        final DateTime? updatedAt = j.containsKey('updated_at') && j['updated_at'] != null
+            ? DateTime.tryParse(j['updated_at'].toString())
+            : null;
+
         return MemoryItem(
           id: id.isNotEmpty ? id : key,
           handle: handle,
@@ -444,9 +487,35 @@ class MemoryProvider extends ChangeNotifier {
           idempotentKey: key,
           content: decryptedContent,
           metadata: meta,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
         );
       }).toList();
       items = nextItems;
+      items.sort((a, b) {
+        // Sort by updatedAt descending
+        if (a.updatedAt != null && b.updatedAt != null) {
+          final result = b.updatedAt!.compareTo(a.updatedAt!);
+          if (result != 0) return result;
+        } else if (a.updatedAt != null) {
+          return -1; // a is newer
+        } else if (b.updatedAt != null) {
+          return 1; // b is newer
+        }
+
+        // Then by createdAt descending
+        if (a.createdAt != null && b.createdAt != null) {
+          final result = b.createdAt!.compareTo(a.createdAt!);
+          if (result != 0) return result;
+        } else if (a.createdAt != null) {
+          return -1; // a is newer
+        } else if (b.createdAt != null) {
+          return 1; // b is newer
+        }
+
+        // Finally by id as a fallback
+        return a.id.compareTo(b.id);
+      });
       _newItemIds
         ..clear()
         ..addAll(
@@ -516,17 +585,50 @@ class MemoryProvider extends ChangeNotifier {
           final Map<String, dynamic>? meta =
               j['metadata'] is Map ? Map<String, dynamic>.from(j['metadata'] as Map) : null;
 
-          return MemoryItem(
+        final DateTime? createdAt = j.containsKey('created_at') && j['created_at'] != null
+            ? DateTime.tryParse(j['created_at'].toString())
+            : null;
+        final DateTime? updatedAt = j.containsKey('updated_at') && j['updated_at'] != null
+            ? DateTime.tryParse(j['updated_at'].toString())
+            : null;
+
+        return MemoryItem(
             id: id.isNotEmpty ? id : key,
             handle: handle,
             description: desc,
             idempotentKey: key,
             content: decryptedContent,
             metadata: meta,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
           );
         }).toList();
 
         items = [...items, ...moreItems];
+        items.sort((a, b) {
+          // Sort by updatedAt descending
+          if (a.updatedAt != null && b.updatedAt != null) {
+            final result = b.updatedAt!.compareTo(a.updatedAt!);
+            if (result != 0) return result;
+          } else if (a.updatedAt != null) {
+            return -1; // a is newer
+          } else if (b.updatedAt != null) {
+            return 1; // b is newer
+          }
+
+          // Then by createdAt descending
+          if (a.createdAt != null && b.createdAt != null) {
+            final result = b.createdAt!.compareTo(a.createdAt!);
+            if (result != 0) return result;
+          } else if (a.createdAt != null) {
+            return -1; // a is newer
+          } else if (b.createdAt != null) {
+            return 1; // b is newer
+          }
+
+          // Finally by id as a fallback
+          return a.id.compareTo(b.id);
+        });
         _newItemIds.addAll(
           moreItems
               .map((e) => e.id)

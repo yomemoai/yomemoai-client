@@ -90,7 +90,7 @@
     }
   ],
 
-  "prolog_source": "% YoMemo Core Rules v1.0.0\n\ndetail(ID, Handle, Desc, Layer, Mode, Status) :-\n    memory(ID, Handle, Desc),\n    classification(ID, Layer),\n    ontology(ID, Mode, _),\n    vcs(ID, _, Status, _).\n\nhigh_value(ID, Handle, Score) :-\n    memory(ID, Handle, _),\n    elap(ID, _, L, A, P),\n    Score is L + A + P,\n    Score > 2.0.\n\nroi(ID, Handle, Score) :-\n    memory(ID, Handle, _),\n    elap(ID, E, L, _, P),\n    Score is (P * L) / (1 + E).\n\nbacklog_feature(ID, Handle, Desc) :-\n    memory(ID, Handle, Desc),\n    tag(ID, 'feature'),\n    vcs(ID, _, 'Backlog', _).\n\nemotional_memory(ID, Handle, E, Desc) :-\n    memory(ID, Handle, Desc),\n    elap(ID, E, _, _, _),\n    E > 0.6.\n\nyomemo_item(ID, Handle, Desc, Status) :-\n    memory(ID, Handle, Desc),\n    tag(ID, 'yomemo'),\n    vcs(ID, _, Status, _).\n\nfocus_conflict(PlanID, OtherID, OtherHandle, OtherDesc) :-\n    memory(PlanID, 'plan', _),\n    tag(PlanID, 'focus'),\n    vcs(PlanID, _, 'Active', _),\n    memory(OtherID, OtherHandle, OtherDesc),\n    PlanID \\= OtherID,\n    OtherHandle \\= 'plan',\n    OtherHandle \\= 'user-goals',\n    vcs(OtherID, _, OtherStatus, _),\n    OtherStatus \\= 'Backlog',\n    OtherStatus \\= 'Active'.\n\nconnected(ID1, H1, ID2, H2, Tag) :-\n    tag(ID1, Tag),\n    tag(ID2, Tag),\n    ID1 @< ID2,\n    memory(ID1, H1, _),\n    memory(ID2, H2, _),\n    H1 \\= H2,\n    Tag \\= 'yomemo'.\n\nactionable(ID, Handle, Desc, P) :-\n    memory(ID, Handle, Desc),\n    elap(ID, _, _, _, P),\n    P >= 0.8,\n    vcs(ID, _, 'Active', _).\n",
+  "prolog_source": "% YoMemo Core Rules v1.0.0\n\ndetail(ID, Handle, Desc, Layer, Mode, Status) :-\n    memory(ID, Handle, Desc),\n    classification(ID, Layer),\n    ontology(ID, Mode, _),\n    vcs(ID, _, Status, _).\n\nhigh_value(ID, Handle, Score) :-\n    memory(ID, Handle, _),\n    elap(ID, _, L, A, P),\n    Score is L + A + P,\n    Score > 2.0.\n\nroi(ID, Handle, Score) :-\n    memory(ID, Handle, _),\n    elap(ID, E, L, _, P),\n    Score is (P * L) / (1 + E).\n\nbacklog_feature(ID, Handle, Desc) :-\n    memory(ID, Handle, Desc),\n    tag(ID, 'feature'),\n    vcs(ID, _, 'Backlog', _).\n\nemotional_memory(ID, Handle, E, Desc) :-\n    memory(ID, Handle, Desc),\n    elap(ID, E, _, _, _),\n    E > 0.6.\n\nyomemo_item(ID, Handle, Desc, Status) :-\n    memory(ID, Handle, Desc),\n    tag(ID, 'yomemo'),\n    vcs(ID, _, Status, _).\n\nfocus_conflict(PlanID, OtherID, OtherHandle, OtherDesc) :-\n    memory(PlanID, 'plan', _),\n    tag(PlanID, 'focus'),\n    vcs(PlanID, _, 'Active', _),\n    memory(OtherID, OtherHandle, OtherDesc),\n    PlanID \\= OtherID,\n    OtherHandle \\= 'plan',\n    OtherHandle \\= 'user-goals',\n    vcs(OtherID, _, OtherStatus, _),\n    OtherStatus \\= 'Backlog',\n    OtherStatus \\= 'Active'.\n\nconnected(ID1, H1, ID2, H2, Tag) :-\n    tag(ID1, Tag),\n    tag(ID2, Tag),\n    ID1 @< ID2,\n    memory(ID1, H1, _),\n    memory(ID2, H2, _),\n    H1 \\= H2,\n    Tag \\= 'yomemo'.\n\nimportant_high_value(ID, Handle, Score) :-\n    memory(ID, Handle, _),\n    tag(ID, 'important'),\n    elap(ID, _, L, A, P),\n    Score is L + A + P,\n    Score > 2.0.\n\nemotional_topic(ID, Handle, E, Desc) :-\n    emotional_memory(ID, Handle, E, Desc),\n    tag(ID, 'topic').\n\ncoding_project_score(ID, Handle, Score, Status, Stack) :-\n    memory(ID, Handle, _),\n    tag(ID, 'project'),\n    vcs(ID, Stack, Status, _),\n    elap(ID, _, L, A, P),\n    Score is (P * L) + A.\n\nbacklog_feature_roi(ID, Handle, Desc, Score) :-\n    backlog_feature(ID, Handle, Desc),\n    roi(ID, Handle, Score).\n\nactionable(ID, Handle, Desc, P) :-\n    memory(ID, Handle, Desc),\n    elap(ID, _, _, _, P),\n    P >= 0.8,\n    vcs(ID, _, 'Active', _).\n",
 
   "rules": [
     {
@@ -120,6 +120,125 @@
       "priority": "low",
       "category": "overview",
       "enabled": true
+    },
+
+    {
+      "id": "important_high_value",
+      "name": "Important High-Value Memories",
+      "name_zh": "重要且高价值的记忆",
+      "description": "Memories tagged 'important' where Logic + Abstraction + Pragmatism exceeds 2.0.",
+      "description_zh": "打了 important 标签且 L+A+P 总分超过 2.0 的记忆，代表你理性上非常在意的事项。",
+      "query": "important_high_value(ID, Handle, Score).",
+      "result_vars": [
+        { "name": "ID",     "type": "id",     "display_name": "Memory ID", "display_name_zh": "记忆 ID" },
+        { "name": "Handle", "type": "atom",   "display_name": "Domain",    "display_name_zh": "领域" },
+        { "name": "Score",  "type": "number", "display_name": "L+A+P",     "display_name_zh": "综合得分" }
+      ],
+      "ui": {
+        "type": "card",
+        "icon": "priority_high",
+        "color": "#f97316",
+        "sort_by": "Score",
+        "sort_order": "desc",
+        "group_position": "secondary",
+        "empty_message": "No important high-value memories found.",
+        "empty_message_zh": "还没有打 important 标签且高价值的记忆。"
+      },
+      "trigger": { "type": "on_demand" },
+      "priority": "high",
+      "category": "insight",
+      "enabled": false
+    },
+
+    {
+      "id": "emotional_topics",
+      "name": "Emotional Topics (tag=topic)",
+      "name_zh": "高情感主题（tag=topic）",
+      "description": "Emotional memories (E > 0.6) that are also tagged 'topic'. Highlights themes you feel strongly about.",
+      "description_zh": "情感指数 > 0.6 且打了 topic 标签的记忆，帮助你发现最近情绪很大的主题。",
+      "query": "emotional_topic(ID, Handle, E, Desc).",
+      "result_vars": [
+        { "name": "ID",     "type": "id",     "display_name": "Memory ID", "display_name_zh": "记忆 ID" },
+        { "name": "Handle", "type": "atom",   "display_name": "Domain",    "display_name_zh": "领域" },
+        { "name": "E",      "type": "number", "display_name": "Emotion",   "display_name_zh": "情感指数" },
+        { "name": "Desc",   "type": "string", "display_name": "Description", "display_name_zh": "描述" }
+      ],
+      "ui": {
+        "type": "card",
+        "icon": "psychology",
+        "color": "#db2777",
+        "sort_by": "E",
+        "sort_order": "desc",
+        "group_position": "secondary",
+        "empty_message": "No emotional topic memories found.",
+        "empty_message_zh": "还没有既高情感又打了 topic 标签的记忆。"
+      },
+      "trigger": {
+        "type": "periodic",
+        "interval_minutes": 1440
+      },
+      "priority": "medium",
+      "category": "health",
+      "enabled": false
+    },
+
+    {
+      "id": "coding_projects",
+      "name": "Coding Projects ROI",
+      "name_zh": "编程项目 ROI 评估",
+      "description": "Coding-related projects tagged 'project', scored by (Pragmatism x Logic) plus Abstraction.",
+      "description_zh": "打了 project 标签、带技术栈信息的编程项目，用 (P x L) + A 评估理性投入与抽象深度。",
+      "query": "coding_project_score(ID, Handle, Score, Status, Stack).",
+      "result_vars": [
+        { "name": "ID",     "type": "id",     "display_name": "Memory ID", "display_name_zh": "记忆 ID" },
+        { "name": "Handle", "type": "atom",   "display_name": "Handle",    "display_name_zh": "Handle" },
+        { "name": "Status", "type": "atom",   "display_name": "Status",    "display_name_zh": "状态" },
+        { "name": "Stack",  "type": "string", "display_name": "Stack",     "display_name_zh": "技术栈" },
+        { "name": "Score",  "type": "number", "display_name": "Score",     "display_name_zh": "评分" }
+      ],
+      "ui": {
+        "type": "dashboard",
+        "icon": "code",
+        "color": "#0ea5e9",
+        "sort_by": "Score",
+        "sort_order": "desc",
+        "group_position": "secondary",
+        "empty_message": "No coding projects found (tag 'project').",
+        "empty_message_zh": "还没有打 project 标签的编程项目。"
+      },
+      "trigger": { "type": "on_demand" },
+      "priority": "medium",
+      "category": "productivity",
+      "enabled": true
+    },
+
+    {
+      "id": "backlog_feature_roi",
+      "name": "Backlog Features by ROI",
+      "name_zh": "按 ROI 排序的待办功能",
+      "description": "Backlog features ranked by ROI = (Pragmatism x Logic) / (1 + Emotion).",
+      "description_zh": "对标记为 feature 且状态为 Backlog 的功能，以 ROI = (P x L) / (1 + E) 排序，帮你优先选择要做的功能。",
+      "query": "backlog_feature_roi(ID, Handle, Desc, Score).",
+      "result_vars": [
+        { "name": "ID",     "type": "id",     "display_name": "Memory ID",   "display_name_zh": "记忆 ID" },
+        { "name": "Handle", "type": "atom",   "display_name": "Domain",      "display_name_zh": "领域" },
+        { "name": "Desc",   "type": "string", "display_name": "Description", "display_name_zh": "描述" },
+        { "name": "Score",  "type": "number", "display_name": "ROI",         "display_name_zh": "ROI 值" }
+      ],
+      "ui": {
+        "type": "dashboard",
+        "icon": "stacked_line_chart",
+        "color": "#22c55e",
+        "sort_by": "Score",
+        "sort_order": "desc",
+        "group_position": "secondary",
+        "empty_message": "No backlog features with ROI yet.",
+        "empty_message_zh": "还没有带 ROI 的 Backlog 功能。"
+      },
+      "trigger": { "type": "on_demand" },
+      "priority": "medium",
+      "category": "productivity",
+      "enabled": false
     },
 
     {

@@ -97,6 +97,13 @@ class RuleEngine {
     await _loadDefault();
   }
 
+  /// Export current facts + rules as a single Prolog program (for debug: save as memories.pl).
+  String exportMemoriesProlog(List<MemoryItem> memories) {
+    final facts = PrologService.memoriesToProlog(memories);
+    final rules = _ruleSet?.prologSource ?? '';
+    return '% Facts from memories (generated for debug)\n$facts\n% --- Rules from ruleset ---\n$rules';
+  }
+
   void dispose() {
     _prolog.dispose();
   }
@@ -105,9 +112,12 @@ class RuleEngine {
 
   /// Execute all enabled rules against the given memories.
   List<RuleResult> executeAll(List<MemoryItem> memories) {
-    if (_prologReady && _ruleSet != null) {
-      return _executeWithProlog(memories);
-    }
+    final useProlog = _prologReady && _ruleSet != null;
+    debugPrint(
+      '[RuleEngine] executeAll: engine=${useProlog ? "Prolog" : "Dart"} '
+      '(prologReady=$_prologReady, ruleSet=${_ruleSet != null})',
+    );
+    if (useProlog) return _executeWithProlog(memories);
     return _executeWithDart(memories);
   }
 
@@ -116,27 +126,58 @@ class RuleEngine {
     String triggerType,
     List<MemoryItem> memories,
   ) {
-    final rules = enabledRules.where((r) => r.trigger.type == triggerType);
-    if (_prologReady && _ruleSet != null) {
-      return _prologBatch(rules.toList(), memories);
-    }
+    final rules = enabledRules.where((r) => r.trigger.type == triggerType).toList();
+    final useProlog = _prologReady && _ruleSet != null;
+    debugPrint(
+      '[RuleEngine] executeByTrigger("$triggerType"): engine=${useProlog ? "Prolog" : "Dart"} '
+      'rules=${rules.length}',
+    );
+    if (useProlog) return _prologBatch(rules, memories);
     return rules.map((r) => _executeDartRule(r, memories)).toList();
   }
 
   // ───────── Prolog Execution ─────────
 
   List<RuleResult> _executeWithProlog(List<MemoryItem> memories) {
-    // Build facts from memory items + load rule definitions
+    final withFingerprint = memories.where((m) => m.hasFingerprint).length;
+    final withProjectTag =
+        memories.where((m) => m.hasFingerprint && m.tags.contains('project')).length;
+    debugPrint(
+      '[RuleEngine] Prolog consult: memories=${memories.length} '
+      'withFingerprint=$withFingerprint withTagProject=$withProjectTag',
+    );
     final facts = PrologService.memoriesToProlog(memories);
     final program = '$facts\n${_ruleSet!.prologSource}';
-    final error = _prolog.consult(program);
-
-    if (error != null) {
-      debugPrint('[RuleEngine] Prolog consult error: $error');
+    final factLines = facts.split('\n').where((s) => s.trim().isNotEmpty).length;
+    debugPrint(
+      '[RuleEngine] Program: ${program.length} chars, factLines≈$factLines, '
+      'startsWith: ${program.length > 80 ? program.substring(0, 80).replaceAll("\n", " ") : program}',
+    );
+    final res = _prolog.consultAndQueryAll(program, enabledRules);
+    if (res.error != null) {
+      debugPrint('[RuleEngine] Prolog consultAndQueryAll error: ${res.error} → falling back to Dart');
       return _executeWithDart(memories);
     }
-
-    return _prologQueryAll(enabledRules, memories);
+    var results = res.results!;
+    // Hybrid: any rule with 0 rows from Prolog → fill from Dart (supports dynamic rules)
+    results = [
+      for (final r in results)
+        r.rows.isEmpty ? _executeDartRule(r.rule, memories) : r,
+    ];
+    debugPrint('[RuleEngine] Prolog consultAndQueryAll OK, ${results.length} rule(s)');
+    for (final rr in results) {
+      debugPrint(
+        '[RuleEngine] Prolog rule="${rr.rule.id}" rawRows=${rr.rows.length} '
+        'afterSortLimit=${_sortAndLimit(rr.rows, rr.rule).length}',
+      );
+    }
+    return results
+        .map((rr) => RuleResult(
+              rule: rr.rule,
+              rows: _sortAndLimit(rr.rows, rr.rule),
+              executedAt: rr.executedAt,
+            ))
+        .toList();
   }
 
   /// Consult once, then run multiple queries.
@@ -144,46 +185,45 @@ class RuleEngine {
     List<Rule> rules,
     List<MemoryItem> memories,
   ) {
+    final withFingerprint = memories.where((m) => m.hasFingerprint).length;
+    final withProjectTag =
+        memories.where((m) => m.hasFingerprint && m.tags.contains('project')).length;
+    debugPrint(
+      '[RuleEngine] Prolog consult: memories=${memories.length} '
+      'withFingerprint=$withFingerprint withTagProject=$withProjectTag',
+    );
     final facts = PrologService.memoriesToProlog(memories);
     final program = '$facts\n${_ruleSet!.prologSource}';
-    final error = _prolog.consult(program);
-
-    if (error != null) {
-      debugPrint('[RuleEngine] Prolog consult error: $error');
+    final factLines = facts.split('\n').where((s) => s.trim().isNotEmpty).length;
+    debugPrint(
+      '[RuleEngine] Program: ${program.length} chars, factLines≈$factLines, '
+      'startsWith: ${program.length > 80 ? program.substring(0, 80).replaceAll("\n", " ") : program}',
+    );
+    final res = _prolog.consultAndQueryAll(program, rules);
+    if (res.error != null) {
+      debugPrint('[RuleEngine] Prolog consultAndQueryAll error: ${res.error} → falling back to Dart for ${rules.length} rule(s)');
       return rules.map((r) => _executeDartRule(r, memories)).toList();
     }
-
-    return _prologQueryAll(rules, memories);
-  }
-
-  /// Run query for each rule on the already-consulted session.
-  List<RuleResult> _prologQueryAll(
-    List<Rule> rules,
-    List<MemoryItem> memories,
-  ) {
-    final results = <RuleResult>[];
-    for (final rule in rules) {
-      final varNames = rule.resultVars.map((v) => v.name).toList();
-      var rows = _prolog.query(rule.query, varNames);
-
-      // If Prolog query fails, try Dart fallback for this rule
-      // (rows will be empty on error, which is fine for most cases)
-
-      rows = _sortAndLimit(rows, rule);
-
-      results.add(RuleResult(
-        rule: rule,
-        rows: rows,
-        executedAt: DateTime.now(),
-      ));
-    }
-    return results;
+    var results = res.results!;
+    // Hybrid: any rule with 0 rows from Prolog → fill from Dart (supports dynamic rules)
+    results = [
+      for (final r in results)
+        r.rows.isEmpty ? _executeDartRule(r.rule, memories) : r,
+    ];
+    debugPrint('[RuleEngine] Prolog consultAndQueryAll OK, ${results.length} rule(s)');
+    return results
+        .map((rr) => RuleResult(
+              rule: rr.rule,
+              rows: _sortAndLimit(rr.rows, rr.rule),
+              executedAt: rr.executedAt,
+            ))
+        .toList();
   }
 
   // ───────── Dart Fallback ─────────
 
   List<RuleResult> _executeWithDart(List<MemoryItem> memories) {
-    debugPrint('[RuleEngine] Executing with Dart fallback');
+    debugPrint('[RuleEngine] Executing with Dart fallback (${enabledRules.length} rules)');
     return enabledRules
         .map((r) => _executeDartRule(r, memories))
         .toList();
@@ -191,7 +231,11 @@ class RuleEngine {
 
   RuleResult _executeDartRule(Rule rule, List<MemoryItem> memories) {
     var rows = _evaluateDart(rule.id, memories);
+    final rawCount = rows.length;
     rows = _sortAndLimit(rows, rule);
+    debugPrint(
+      '[RuleEngine] Dart rule="${rule.id}" rawRows=$rawCount afterSortLimit=${rows.length}',
+    );
     return RuleResult(rule: rule, rows: rows, executedAt: DateTime.now());
   }
 
@@ -243,9 +287,28 @@ class RuleEngine {
         return _crossDomain(memories);
       case 'actionable':
         return _actionable(memories);
+      case 'coding_projects':
+        return _codingProjects(memories);
       default:
         return [];
     }
+  }
+
+  List<Map<String, dynamic>> _codingProjects(List<MemoryItem> m) {
+    final rows = <Map<String, dynamic>>[];
+    for (final x in m.where((x) =>
+        x.hasFingerprint && x.tags.contains('project'))) {
+      final score = (x.elapP * x.elapL) + x.elapA;
+      rows.add({
+        'ID': x.id,
+        'Handle': x.handle,
+        'Score': _r(score),
+        'Status': x.vcsStatus,
+        'Stack': x.vcsStack,
+      });
+    }
+    rows.sort((a, b) => (b['Score'] as double).compareTo(a['Score'] as double));
+    return rows;
   }
 
   List<Map<String, dynamic>> _overview(List<MemoryItem> m) {
