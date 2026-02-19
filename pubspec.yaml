@@ -31,23 +31,18 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # 网络请求
   dio: ^5.4.0
-  # 加密：RSA PEM 解析 + OAEP、AES-GCM 混合加密（与 python-yomemo-mcp 一致）
   encrypt: ^5.0.3
   pointycastle: ^3.9.0
   flutter_svg: ^2.0.10
-  # 哈希库
   crypto: ^3.0.3
-  # 状态管理 (最简单的 DI 和 MVVM 实现)
   provider: ^6.1.1
-  # 生成 Idempotent Key
   uuid: ^4.3.3
-  # UI 组件库 (可选，为了好看一点的图标)
   cupertino_icons: ^1.0.8
   
-  shared_preferences: ^2.3.2  # 简单的键值对存储
-  file_picker: ^8.1.2         # 调用系统的文件选择对话框
+  shared_preferences: ^2.3.2  
+  path_provider: ^2.1.4       # App dir for storing PEM copy (avoids sandbox blocking user path after restart)
+  file_picker: ^8.1.2      
   url_launcher: ^6.3.2
   speech_to_text: ^7.3.0
   flutter_js: ^0.8.7

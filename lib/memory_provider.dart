@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import 'api_service.dart';
@@ -197,10 +198,15 @@ class MemoryProvider extends ChangeNotifier {
       _loadUserProfile();
     }
     if (apiKey.isNotEmpty && pkPath.isNotEmpty) {
-      final file = File(pkPath);
-      if (await file.exists()) {
-        _crypto.init(await file.readAsString());
+      try {
+        final file = File(pkPath);
+        final pem = await file.readAsString();
+        _crypto.init(pem);
         await refreshMemories();
+        lastSyncError = null;
+      } catch (e) {
+        debugPrint('PEM read or refresh on load: $e');
+        lastSyncError = e.toString();
       }
     }
     _startLockTimerIfNeeded();
@@ -210,11 +216,51 @@ class MemoryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Internal PEM file name under app support dir (avoids macOS sandbox blocking user path after restart).
+  static const String _kInternalPemFileName = 'private_key.pem';
+
   Future<void> saveSettings(String key, String path) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('api_key', key);
-    await prefs.setString('pk_path', path);
+    // Copy PEM into app directory so we can read it after restart (macOS sandbox blocks user path).
+    try {
+      final pem = await File(path).readAsString();
+      final dir = await getApplicationSupportDirectory();
+      final appDir = Directory('${dir.path}/yomemo_client');
+      await appDir.create(recursive: true);
+      final internalPath = '${appDir.path}/$_kInternalPemFileName';
+      await File(internalPath).writeAsString(pem);
+      await prefs.setString('pk_path', internalPath);
+    } catch (e) {
+      debugPrint('PEM copy to app dir failed: $e');
+      await prefs.setString('pk_path', path);
+    }
     await loadSettings();
+  }
+
+  /// Call when Home is shown: if PEM is configured but memories weren't loaded (e.g. first
+  /// read failed or refresh failed), try again to init from file and refresh once.
+  Future<void> ensureMemoriesLoadedIfNeeded() async {
+    if (apiKey.isEmpty || pkPath.isEmpty) return;
+    if (!_crypto.isInitialized) {
+      try {
+        final file = File(pkPath);
+        final pem = await file.readAsString();
+        _crypto.init(pem);
+        await refreshMemories();
+        lastSyncError = null;
+        notifyListeners();
+      } catch (e) {
+        debugPrint('ensureMemoriesLoaded: PEM read failed: $e');
+        lastSyncError = e.toString();
+        notifyListeners();
+      }
+      return;
+    }
+    if (items.isEmpty && !hasLoadedOnce) {
+      await refreshMemories();
+      notifyListeners();
+    }
   }
 
   Future<void> _loadUserProfile() async {

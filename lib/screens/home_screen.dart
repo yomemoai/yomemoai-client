@@ -40,6 +40,10 @@ class _HomeScreenState extends State<HomeScreen> {
     _scrollController.addListener(_onScroll);
     _searchController.addListener(_onSearchChanged);
     _loadExpandedPrefixes();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<MemoryProvider>().ensureMemoriesLoadedIfNeeded();
+    });
   }
 
   Future<void> _loadExpandedPrefixes() async {
