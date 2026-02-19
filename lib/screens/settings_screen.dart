@@ -3,6 +3,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../memory_provider.dart';
+import '../locale_provider.dart';
+import '../l10n/app_localizations.dart';
 import 'export_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -16,13 +18,25 @@ const String _kHomeExpandedPrefixesKey = 'home_expanded_prefixes';
 
 /// Prefix options for "default expanded groups" (same order as handle_display).
 const List<MapEntry<String, String>> _defaultExpandedOptions = [
-  MapEntry('voice', 'Voice'),
-  MapEntry('daily', 'Daily'),
-  MapEntry('yomemo', 'YoMemo'),
-  MapEntry('plan', 'Plan'),
-  MapEntry('goals', 'Goals'),
-  MapEntry('other', 'Other'),
+  MapEntry('voice', 'voice'),
+  MapEntry('daily', 'daily'),
+  MapEntry('yomemo', 'yomemo'),
+  MapEntry('plan', 'plan'),
+  MapEntry('goals', 'goals'),
+  MapEntry('other', 'other'),
 ];
+
+String _prefixLabel(AppLocalizations l10n, String key) {
+  switch (key) {
+    case 'voice': return l10n.categoryVoice;
+    case 'daily': return l10n.categoryDaily;
+    case 'yomemo': return l10n.categoryYoMemo;
+    case 'plan': return l10n.categoryPlan;
+    case 'goals': return l10n.categoryGoals;
+    case 'other': return l10n.categoryOther;
+    default: return key;
+  }
+}
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _keyCtrl;
@@ -46,9 +60,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Please set your API Key to get started"),
-              duration: Duration(seconds: 4),
+            SnackBar(
+              content: Text(AppLocalizations.of(context).pleaseSetApiKey),
+              duration: const Duration(seconds: 4),
             ),
           );
         }
@@ -76,7 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setStringList(_kHomeExpandedPrefixesKey, _defaultExpanded.toList());
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Home expanded groups reset to default. Return to Home to see the change.")),
+        SnackBar(content: Text(AppLocalizations.of(context).homeExpandedGroupsReset)),
       );
     }
   }
@@ -94,29 +108,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MemoryProvider>();
+    final localeProvider = context.watch<LocaleProvider>();
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text("Configuration")),
+      appBar: AppBar(title: Text(l10n.configuration)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: ListView(
           children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                l10n.language,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ChoiceChip(
+                  label: Text(l10n.languageEnglish),
+                  selected: localeProvider.locale.languageCode == 'en',
+                  onSelected: (_) => localeProvider.setLocale(const Locale('en')),
+                ),
+                const SizedBox(width: 12),
+                ChoiceChip(
+                  label: Text(l10n.languageChinese),
+                  selected: localeProvider.locale.languageCode == 'zh',
+                  onSelected: (_) => localeProvider.setLocale(const Locale('zh')),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
             TextField(
               controller: _keyCtrl,
               decoration: InputDecoration(
-                labelText: "YoMemo API Key",
-                hintText: _existingKey.isEmpty ? "Enter API Key" : "Configured",
+                labelText: l10n.yomemoApiKey,
+                hintText: _existingKey.isEmpty ? l10n.enterApiKey : l10n.configured,
                 helperText: _existingKey.isEmpty
                     ? null
-                    : "Leave empty to keep current",
+                    : l10n.leaveEmptyToKeepCurrent,
               ),
             ),
             const SizedBox(height: 20),
             ListTile(
-              title: const Text("Private Key File"),
+              title: Text(l10n.privateKeyFile),
               subtitle: Text(
                 _path.isEmpty
-                    ? "Select a file to use as encryption key"
-                    : "Configured",
+                    ? l10n.selectFileForEncryptionKey
+                    : l10n.configured,
               ),
               trailing: IconButton(
                 icon: const Icon(Icons.file_open),
@@ -132,56 +172,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 10),
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                "Local Lock",
-                style: TextStyle(fontWeight: FontWeight.w600),
+                l10n.localLock,
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _newPwdCtrl,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: "New Password",
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.newPassword,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _confirmPwdCtrl,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: "Confirm Password",
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.confirmPassword,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _timeoutCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "Lock Timeout (minutes)",
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.lockTimeoutMinutes,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 10),
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                "Editor",
-                style: TextStyle(fontWeight: FontWeight.w600),
+                l10n.editor,
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 12),
             SwitchListTile(
-              title: const Text("Confirm swipe-to-delete"),
-              subtitle: const Text(
-                "Ask for confirmation when deleting a memory by swipe.",
-              ),
+              title: Text(l10n.confirmSwipeToDelete),
+              subtitle: Text(l10n.confirmSwipeToDeleteSubtitle),
               value: provider.confirmSwipeDelete,
               onChanged: (value) {
                 provider.updateConfirmSwipeDelete(value);
@@ -191,28 +229,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
             TextField(
               controller: _autoSaveCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: "Auto-save Interval (seconds)",
-                helperText: "Also saves on blur. Range: 1-300",
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.autoSaveIntervalSeconds,
+                helperText: l10n.autoSaveHelperText,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 10),
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                "Export",
-                style: TextStyle(fontWeight: FontWeight.w600),
+                l10n.export,
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 4),
             ListTile(
-              title: const Text("Export memories"),
-              subtitle: const Text(
-                "Export to folder, memories.pl, or other formats.",
-              ),
+              title: Text(l10n.exportMemories),
+              subtitle: Text(l10n.exportMemoriesSubtitle),
               trailing: const Icon(Icons.upload_file),
               onTap: () {
                 Navigator.push(
@@ -226,17 +262,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 10),
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                "Home: Default expanded groups",
-                style: TextStyle(fontWeight: FontWeight.w600),
+                l10n.homeDefaultExpandedGroups,
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
-              "Which groups (by handle prefix) are expanded by default on first open. After you expand/collapse on Home, your choice is remembered.",
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+            Text(
+              l10n.homeDefaultExpandedGroupsHelp,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 10),
             Wrap(
@@ -244,7 +280,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               runSpacing: 6,
               children: _defaultExpandedOptions.map((e) {
                 final key = e.key;
-                final label = e.value;
+                final label = _prefixLabel(l10n, key);
                 final selected = _defaultExpanded.contains(key);
                 return FilterChip(
                   label: Text(label),
@@ -265,35 +301,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text("Reset Home to this default"),
+              label: Text(l10n.resetHomeToDefault),
               onPressed: () => _resetHomeToDefault(),
             ),
             const SizedBox(height: 20),
             const Divider(),
             const SizedBox(height: 10),
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                "Insights & Notifications",
-                style: TextStyle(fontWeight: FontWeight.w600),
+                l10n.insightsAndNotifications,
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 12),
             SwitchListTile(
-              title: const Text("Show red badge on Insights"),
-              subtitle: const Text(
-                "Display the number of rules with non-empty results in the app bar.",
-              ),
+              title: Text(l10n.showRedBadgeOnInsights),
+              subtitle: Text(l10n.showRedBadgeOnInsightsSubtitle),
               value: provider.showInsightsBadge,
               onChanged: (value) {
                 provider.updateShowInsightsBadge(value);
               },
             ),
             SwitchListTile(
-              title: const Text("Enable haptics for new insights"),
-              subtitle: const Text(
-                "Light vibration / click when new high-priority insights appear (when supported by device).",
-              ),
+              title: Text(l10n.enableHapticsForNewInsights),
+              subtitle: Text(l10n.enableHapticsForNewInsightsSubtitle),
               value: provider.alertHapticsEnabled,
               onChanged: (value) {
                 provider.updateAlertHaptics(value);
@@ -310,7 +342,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _confirmPwdCtrl.text.isNotEmpty) {
                   if (_newPwdCtrl.text != _confirmPwdCtrl.text) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Passwords do not match")),
+                      SnackBar(content: Text(l10n.passwordsDoNotMatch)),
                     );
                     return;
                   }
@@ -341,11 +373,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   final messenger = ScaffoldMessenger.of(context);
                   Navigator.pop(context);
                   messenger.showSnackBar(
-                    const SnackBar(content: Text("Settings saved")),
+                    SnackBar(content: Text(l10n.settingsSaved)),
                   );
                 }
               },
-              child: const Text("Save & Connect"),
+              child: Text(l10n.saveAndConnect),
             ),
           ],
         ),

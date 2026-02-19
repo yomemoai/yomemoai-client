@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../memory_provider.dart';
+import '../l10n/app_localizations.dart';
 
 class EditorScreen extends StatefulWidget {
   final MemoryItem? item;
@@ -199,8 +200,8 @@ class _EditorScreenState extends State<EditorScreen>
     if (!(Platform.isIOS || Platform.isAndroid)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Voice capture is only available on mobile."),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).voiceCaptureOnlyMobile),
         ),
       );
       return;
@@ -228,14 +229,14 @@ class _EditorScreenState extends State<EditorScreen>
         if (!mounted) return;
         setState(() => _isListening = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Speech error: ${error.errorMsg}")),
+          SnackBar(content: Text(AppLocalizations.of(context).speechError(error.errorMsg))),
         );
       },
     );
     if (!available) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Speech recognition not available")),
+        SnackBar(content: Text(AppLocalizations.of(context).speechRecognitionNotAvailable)),
       );
       return;
     }
@@ -337,7 +338,7 @@ class _EditorScreenState extends State<EditorScreen>
   Future<void> _handleSave() async {
     if (_contentController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Content is required")),
+        SnackBar(content: Text(AppLocalizations.of(context).contentRequired)),
       );
       return;
     }
@@ -365,7 +366,7 @@ class _EditorScreenState extends State<EditorScreen>
         _startAutoSaveTimer();
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text("Failed to save: $e")));
+        ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).failedToSave('$e'))));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -381,11 +382,11 @@ class _EditorScreenState extends State<EditorScreen>
         title: AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
           child: _isImmersiveMode && _hasUserInputThisSession
-              ? const Text(
-                  "Writing...",
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
+              ? Text(
+                  AppLocalizations.of(context).writing,
+                  style: const TextStyle(fontSize: 16, color: Colors.grey),
                 )
-              : Text(isEditing ? "Edit Memory" : "New Memory"),
+              : Text(isEditing ? AppLocalizations.of(context).editMemory : AppLocalizations.of(context).newMemory),
         ),
         actions: [
           if (_isAutoSaving)
@@ -443,9 +444,9 @@ class _EditorScreenState extends State<EditorScreen>
                                   TextField(
                                     controller: _handleController,
                                     focusNode: _handleFocus,
-                                    decoration: const InputDecoration(
-                                      labelText: "Handle",
-                                      border: OutlineInputBorder(),
+                                    decoration: InputDecoration(
+                                      labelText: AppLocalizations.of(context).handle,
+                                      border: const OutlineInputBorder(),
                                     ),
                                     enabled: !isEditing,
                                   ),
@@ -453,9 +454,9 @@ class _EditorScreenState extends State<EditorScreen>
                                   TextField(
                                     controller: _descController,
                                     focusNode: _descFocus,
-                                    decoration: const InputDecoration(
-                                      labelText: "Description (Optional)",
-                                      border: OutlineInputBorder(),
+                                    decoration: InputDecoration(
+                                      labelText: AppLocalizations.of(context).descriptionOptional,
+                                      border: const OutlineInputBorder(),
                                     ),
                                   ),
                                   const SizedBox(height: 16),
@@ -479,7 +480,7 @@ class _EditorScreenState extends State<EditorScreen>
                           minLines: _isImmersiveMode ? 20 : 12,
                           style: const TextStyle(fontSize: 18, height: 1.5),
                           decoration: InputDecoration(
-                            hintText: "Start writing your memory...",
+                            hintText: AppLocalizations.of(context).startWritingMemory,
                             hintStyle: TextStyle(color: Colors.grey[400]),
                             border: _isImmersiveMode
                                 ? InputBorder.none
@@ -536,7 +537,7 @@ class _EditorScreenState extends State<EditorScreen>
           children: [
             if (!_isImmersiveMode)
               Text(
-                "Speak to capture this memory",
+                AppLocalizations.of(context).speakToCaptureMemory,
                 style: TextStyle(fontSize: 12, color: Colors.blueGrey[300]),
               ),
             const SizedBox(height: 12),

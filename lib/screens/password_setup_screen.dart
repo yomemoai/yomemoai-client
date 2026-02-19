@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../memory_provider.dart';
+import '../l10n/app_localizations.dart';
 
 class PasswordSetupScreen extends StatefulWidget {
   const PasswordSetupScreen({super.key});
@@ -26,11 +27,11 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
     final pwd = _pwdCtrl.text;
     final confirm = _confirmCtrl.text;
     if (pwd.isEmpty) {
-      setState(() => _error = "Password is required");
+      setState(() => _error = AppLocalizations.of(context).passwordRequired);
       return;
     }
     if (pwd != confirm) {
-      setState(() => _error = "Passwords do not match");
+      setState(() => _error = AppLocalizations.of(context).passwordsDoNotMatch);
       return;
     }
     await context.read<MemoryProvider>().setLocalPassword(pwd);
@@ -39,8 +40,9 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text("Set Local Password")),
+      appBar: AppBar(title: Text(l10n.setLocalPassword)),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -51,17 +53,17 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
               height: 60,
             ),
             const SizedBox(height: 12),
-            const Text(
-              "Create a local password to protect your memories on this device.",
-              style: TextStyle(color: Colors.blueGrey),
+            Text(
+              l10n.createLocalPasswordHint,
+              style: const TextStyle(color: Colors.blueGrey),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _pwdCtrl,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: "New Password",
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n.newPassword,
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -69,7 +71,7 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
               controller: _confirmCtrl,
               obscureText: true,
               decoration: InputDecoration(
-                labelText: "Confirm Password",
+                labelText: l10n.confirmPassword,
                 border: const OutlineInputBorder(),
                 errorText: _error,
               ),
@@ -77,7 +79,7 @@ class _PasswordSetupScreenState extends State<PasswordSetupScreen> {
             const Spacer(),
             ElevatedButton(
               onPressed: _save,
-              child: const Text("Save Password"),
+              child: Text(l10n.savePassword),
             ),
           ],
         ),

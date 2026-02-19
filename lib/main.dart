@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'memory_provider.dart';
+import 'locale_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/lock_screen.dart';
 import 'screens/password_setup_screen.dart';
+import 'l10n/app_localizations.dart';
 
 void main() => runApp(
-  ChangeNotifierProvider(
-    create: (_) => MemoryProvider(),
+  MultiProvider(
+    providers: [
+      ChangeNotifierProvider(create: (_) => MemoryProvider()),
+      ChangeNotifierProvider(create: (_) => LocaleProvider()),
+    ],
     child: const AppRoot(),
   ),
 );
@@ -20,8 +26,17 @@ class AppRoot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.read<MemoryProvider>();
+    final localeProvider = context.watch<LocaleProvider>();
     return MaterialApp(
       title: "Yomemo.AI",
+      locale: localeProvider.locale,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
       home: const MainEntryPoint(),
       builder: (context, child) {
         return Focus(
@@ -71,7 +86,10 @@ class MainEntryPoint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
-      future: context.read<MemoryProvider>().loadSettings(),
+      future: Future.wait([
+        context.read<MemoryProvider>().loadSettings(),
+        context.read<LocaleProvider>().loadLocale(),
+      ]),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(

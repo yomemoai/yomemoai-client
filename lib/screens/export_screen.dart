@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../memory_provider.dart';
 import '../save_memories_pl.dart';
 import '../memory_export_run.dart';
+import '../l10n/app_localizations.dart';
 
 /// Dedicated screen for export options (folder, memories.pl, etc.).
 class ExportScreen extends StatelessWidget {
@@ -14,27 +15,26 @@ class ExportScreen extends StatelessWidget {
     final provider = context.watch<MemoryProvider>();
     final messenger = ScaffoldMessenger.of(context);
     final list = provider.items;
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Export memories")),
+      appBar: AppBar(title: Text(l10n.exportMemoriesTitle)),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          const Text(
-            "Choose an export format. More options may be added later.",
-            style: TextStyle(fontSize: 14, color: Colors.grey),
+          Text(
+            l10n.chooseExportFormat,
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
           ),
           const SizedBox(height: 20),
           ListTile(
-            title: const Text("Export to folder"),
-            subtitle: const Text(
-              "One subfolder per handle; each has metadata.json and one .txt file per memory.",
-            ),
+            title: Text(l10n.exportToFolder),
+            subtitle: Text(l10n.exportToFolderSubtitle),
             trailing: const Icon(Icons.folder_open),
             onTap: () async {
               if (list.isEmpty) {
                 messenger.showSnackBar(
-                  const SnackBar(content: Text("No memories to export")),
+                  SnackBar(content: Text(l10n.noMemoriesToExport)),
                 );
                 return;
                 }
@@ -43,19 +43,17 @@ class ExportScreen extends StatelessWidget {
                 if (!context.mounted) return;
                 if (count == null) {
                   messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text("Export cancelled or not supported on this platform"),
-                    ),
+                    SnackBar(content: Text(l10n.exportCancelledOrNotSupported)),
                   );
                 } else {
                   messenger.showSnackBar(
-                    SnackBar(content: Text("Exported $count handle(s) to selected folder")),
+                    SnackBar(content: Text(l10n.exportedHandlesCount(count))),
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
                   messenger.showSnackBar(
-                    SnackBar(content: Text("Export failed: $e")),
+                    SnackBar(content: Text(l10n.exportFailed('$e'))),
                   );
                 }
               }
@@ -63,10 +61,8 @@ class ExportScreen extends StatelessWidget {
           ),
           const Divider(height: 24),
           ListTile(
-            title: const Text("Export memories.pl"),
-            subtitle: const Text(
-              "Prolog facts + rules for debug. Share/save file, or copy to clipboard if share fails.",
-            ),
+            title: Text(l10n.exportMemoriesPl),
+            subtitle: Text(l10n.exportMemoriesPlSubtitle),
             trailing: const Icon(Icons.code),
             onTap: () async {
               final content = provider.getMemoriesPrologContent();
@@ -74,7 +70,7 @@ class ExportScreen extends StatelessWidget {
                 await saveMemoriesPl(content);
                 if (context.mounted) {
                   messenger.showSnackBar(
-                    const SnackBar(content: Text("memories.pl ready (saved or shared)")),
+                    SnackBar(content: Text(l10n.memoriesPlReady)),
                   );
                 }
               } catch (e) {
@@ -82,18 +78,16 @@ class ExportScreen extends StatelessWidget {
                   await Clipboard.setData(ClipboardData(text: content));
                   if (context.mounted) {
                     messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          "Share failed; copied to clipboard. Paste and save as memories.pl",
-                        ),
-                        duration: Duration(seconds: 4),
+                      SnackBar(
+                        content: Text(l10n.shareFailedCopiedToClipboard),
+                        duration: const Duration(seconds: 4),
                       ),
                     );
                   }
                 } catch (_) {
                   if (context.mounted) {
                     messenger.showSnackBar(
-                      SnackBar(content: Text("Save failed: $e")),
+                      SnackBar(content: Text(l10n.saveFailed('$e'))),
                     );
                   }
                 }
@@ -101,8 +95,8 @@ class ExportScreen extends StatelessWidget {
             },
           ),
           ListTile(
-            title: const Text("Copy memories.pl to clipboard"),
-            subtitle: const Text("Paste into a file and save as memories.pl."),
+            title: Text(l10n.copyMemoriesPlToClipboard),
+            subtitle: Text(l10n.copyMemoriesPlSubtitle),
             trailing: const Icon(Icons.copy),
             onTap: () async {
               final content = provider.getMemoriesPrologContent();
@@ -110,14 +104,14 @@ class ExportScreen extends StatelessWidget {
                 await Clipboard.setData(ClipboardData(text: content));
                 if (context.mounted) {
                   messenger.showSnackBar(
-                    const SnackBar(content: Text("Copied. Paste into a file and save as memories.pl")),
+                    SnackBar(content: Text(l10n.copiedPasteSaveMemoriesPl)),
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
                   messenger.showSnackBar(
-                    SnackBar(content: Text("Copy failed: $e")),
-                );
+                    SnackBar(content: Text(l10n.copyFailed('$e'))),
+                  );
                 }
               }
             },

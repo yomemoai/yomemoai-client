@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
+
 /// Presentation for a memory handle: category, short label, and icon.
 /// Keeps UI consistent without hardcoding rule ids (handles are dynamic).
 class HandleDisplay {
@@ -83,6 +85,56 @@ String handlePrefix(String handle) {
   if (h.isEmpty) return 'other';
   final parts = h.split('-');
   return parts.first.toLowerCase();
+}
+
+/// Localized category label for section headers and chips (e.g. Voice, Daily).
+String localizedCategoryLabel(BuildContext context, String category) {
+  final l10n = AppLocalizations.of(context);
+  switch (category) {
+    case 'Voice': return l10n.categoryVoice;
+    case 'Daily': return l10n.categoryDaily;
+    case 'YoMemo': return l10n.categoryYoMemo;
+    case 'Plan': return l10n.categoryPlan;
+    case 'Goals': return l10n.categoryGoals;
+    case 'Other': return l10n.categoryOther;
+    default: return category;
+  }
+}
+
+/// Localized prefix (lowercase key) to display label for headers/chips.
+String localizedPrefixLabel(BuildContext context, String prefix) {
+  final p = prefix.toLowerCase();
+  final l10n = AppLocalizations.of(context);
+  switch (p) {
+    case 'voice': return l10n.categoryVoice;
+    case 'daily': return l10n.categoryDaily;
+    case 'yomemo': return l10n.categoryYoMemo;
+    case 'plan': return l10n.categoryPlan;
+    case 'goals': return l10n.categoryGoals;
+    case 'user-goals': return l10n.categoryGoals;
+    case 'other': return l10n.categoryOther;
+    default: return prefix.isEmpty ? l10n.categoryOther : prefix;
+  }
+}
+
+/// Localized section title for a handle (category · label or just label).
+String localizedSectionTitle(BuildContext context, String handle) {
+  final d = handleDisplay(handle);
+  final l10n = AppLocalizations.of(context);
+  final cat = localizedCategoryLabel(context, d.category);
+  final lab = d.label == 'No handle'
+      ? l10n.labelNoHandle
+      : (d.label == d.category ? cat : d.label);
+  return lab == cat ? cat : '$cat · $lab';
+}
+
+/// Localized short label for a handle (for chips: "Voice (3)").
+String localizedHandleShortLabel(BuildContext context, String handle) {
+  final d = handleDisplay(handle);
+  final l10n = AppLocalizations.of(context);
+  if (d.label == 'No handle') return l10n.labelNoHandle;
+  if (d.label == d.category) return localizedCategoryLabel(context, d.category);
+  return d.label;
 }
 
 /// Order for prefix groups (same as handle category).

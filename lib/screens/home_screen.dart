@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../memory_provider.dart';
 import '../utils/handle_display.dart';
+import '../l10n/app_localizations.dart';
 import 'settings_screen.dart';
 import 'editor_screen.dart';
 import 'memory_detail_screen.dart';
@@ -77,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MemoryProvider>();
+    final l10n = AppLocalizations.of(context);
     final bool isIOS = defaultTargetPlatform == TargetPlatform.iOS;
     final scaffold = Scaffold(
       appBar: AppBar(
@@ -87,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 8),
             _brandTitle(),
             const SizedBox(width: 8),
-            const Text("Encrypted"),
+            Text(l10n.encrypted),
           ],
         ),
         actions: isIOS
@@ -95,7 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ? [
                 IconButton(
                   icon: const Icon(Icons.lock),
-                  tooltip: "Lock",
+                  tooltip: l10n.lock,
                   onPressed: () => provider.lockNow(),
                 ),
                 IconButton(
@@ -121,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildInsightsButton(provider),
                 IconButton(
                   icon: const Icon(Icons.lock),
-                  tooltip: "Lock",
+                  tooltip: l10n.lock,
                   onPressed: () => provider.lockNow(),
                 ),
                 IconButton(
@@ -191,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     // _onSearchChanged will be triggered by _searchController's listener
                   },
                   decoration: InputDecoration(
-                    hintText: "Search handles...",
+                    hintText: l10n.searchHandles,
                     prefixIcon: const Icon(Icons.search),
                     suffixIcon: textEditingController.text.isNotEmpty
                       ? IconButton(
@@ -232,7 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           final display = handleDisplay(option.key);
                           return ListTile(
                             leading: Icon(display.icon, size: 20, color: Colors.blueGrey[600]),
-                            title: Text(display.sectionTitle),
+                            title: Text(localizedSectionTitle(context, option.key)),
                             subtitle: option.key != display.sectionTitle
                                 ? Text(option.key, style: TextStyle(fontSize: 12, color: Colors.blueGrey[500]))
                                 : null,
@@ -305,7 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         IconButton(
           icon: const Icon(Icons.auto_awesome),
-          tooltip: "Insights",
+          tooltip: AppLocalizations.of(context).insights,
           onPressed: () {
             provider.clearAlerts();
             Navigator.push(
@@ -397,7 +399,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _logo(size: 60),
           const SizedBox(height: 16),
-          const Text("No memories found. Tap + to create one."),
+          Text(AppLocalizations.of(context).noMemoriesFound),
         ],
       ),
     );
@@ -510,8 +512,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildPrefixHeader(String prefix, List<String> handles, int totalCount, bool isExpanded) {
     final display = handleDisplay(handles.isNotEmpty ? handles.first : prefix);
-    final name = prefix.isEmpty ? 'other' : prefix;
-    final cap = name.length > 1 ? '${name[0].toUpperCase()}${name.substring(1)}' : name.toUpperCase();
+    final cap = localizedPrefixLabel(context, prefix);
     return InkWell(
       onTap: () {
         setState(() {
@@ -573,7 +574,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _minimalChip(
-              label: 'All',
+              label: AppLocalizations.of(context).all,
               selected: selectedHandle == null,
               onTap: () => setState(() => _selectedHandleByPrefix[prefix] = null),
               selectedBg: selectedBg,
@@ -581,10 +582,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ...handles.map((handle) {
               final count = (handleToItems[handle] ?? []).length;
-              final display = handleDisplay(handle);
               final selected = selectedHandle == handle;
               return _minimalChip(
-                label: '${display.label} ($count)',
+                label: '${localizedHandleShortLabel(context, handle)} ($count)',
                 selected: selected,
                 onTap: () {
                   setState(() {
@@ -638,6 +638,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildSummary(BuildContext context, int total, int handleCount) {
     final provider = context.watch<MemoryProvider>();
+    final l10n = AppLocalizations.of(context);
     final lastSync = provider.lastSyncAt;
     final lastAttempt = provider.lastSyncAttemptAt;
     final error = provider.lastSyncError;
@@ -659,50 +660,50 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Row(
               children: [
-                const Text(
-                  "Overview",
-                  style: TextStyle(fontWeight: FontWeight.w600),
+                Text(
+                  l10n.overview,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.refresh),
-                  tooltip: "Refresh",
+                  tooltip: l10n.refresh,
                   onPressed: () => provider.refreshMemories(),
                 ),
               ],
             ),
             const SizedBox(height: 6),
-            const Text(
-              "Immutable, zero-trust memory for every LLM session.",
-              style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+            Text(
+              l10n.overviewTagline1,
+              style: TextStyle(fontSize: 12, color: Colors.blueGrey[600]),
             ),
             const SizedBox(height: 6),
-            const Text(
-              "YoMemo protects memory at rest and in retrieval.",
-              style: TextStyle(fontSize: 12, color: Colors.blueGrey),
+            Text(
+              l10n.overviewTagline2,
+              style: TextStyle(fontSize: 12, color: Colors.blueGrey[600]),
             ),
             const SizedBox(height: 8),
             Row(
               children: [
-                _metric("Memories", total.toString()),
+                _metric(l10n.memories, total.toString()),
                 const SizedBox(width: 12),
-                _metric("Handles", handleCount.toString()),
+                _metric(l10n.handles, handleCount.toString()),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              "Last sync: ${timeText(lastSync)}",
+              l10n.lastSync(timeText(lastSync)),
               style: TextStyle(color: Colors.blueGrey[700], fontSize: 12),
             ),
             Text(
-              "Last attempt: ${timeText(lastAttempt)}",
+              l10n.lastAttempt(timeText(lastAttempt)),
               style: TextStyle(color: Colors.blueGrey[700], fontSize: 12),
             ),
             if (error != null && error.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
-                  "Last error: $error",
+                  l10n.lastError(error),
                   style: const TextStyle(color: Colors.redAccent, fontSize: 12),
                 ),
               ),
@@ -768,12 +769,13 @@ class _HomeScreenState extends State<HomeScreen> {
       overlay.size.height - position.dy,
     );
 
+    final l10n = AppLocalizations.of(context);
     final action = await showMenu<String>(
       context: context,
       position: rect,
-      items: const [
-        PopupMenuItem(value: "docs", child: Text("Docs")),
-        PopupMenuItem(value: "github", child: Text("GitHub")),
+      items: [
+        PopupMenuItem(value: "docs", child: Text(l10n.docs)),
+        PopupMenuItem(value: "github", child: Text(l10n.github)),
       ],
     );
 
@@ -783,15 +785,15 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!ok && context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text("Failed to open $label")));
+        ).showSnackBar(SnackBar(content: Text(l10n.failedToOpen(label))));
       }
     }
 
     if (action == "docs") {
-      await openExternal(docsUrl, "Docs");
+      await openExternal(docsUrl, l10n.docs);
     }
     if (action == "github") {
-      await openExternal(githubUrl, "GitHub");
+      await openExternal(githubUrl, l10n.github);
     }
   }
 
@@ -813,14 +815,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final action = await showMenu<String>(
       context: context,
       position: rect,
-      items: const [
+      items: [
         PopupMenuItem(
           value: "insights",
-          child: Text("Insights"),
+          child: Text(AppLocalizations.of(context).insights),
         ),
         PopupMenuItem(
           value: "help",
-          child: Text("Help & Docs"),
+          child: Text(AppLocalizations.of(context).helpAndDocs),
         ),
       ],
     );
@@ -839,7 +841,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHandleSectionHeader(String handle, int count, bool isExpanded) {
-    final display = handleDisplay(handle);
+    final l10n = AppLocalizations.of(context);
     return InkWell(
       onTap: () {
         setState(() {
@@ -864,7 +866,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Tooltip(
                 message: handle,
                 child: Text(
-                  display.sectionTitle,
+                  localizedSectionTitle(context, handle),
                   style: TextStyle(
                     fontWeight: FontWeight.w500,
                     fontSize: 14,
@@ -881,7 +883,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 4),
               IconButton(
                 icon: Icon(Icons.add, size: 18, color: Colors.blueGrey[600]),
-                tooltip: "Add memory in this handle",
+                tooltip: l10n.addMemoryInHandle,
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -893,7 +895,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               IconButton(
                 icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
-                tooltip: "Delete all in this handle",
+                tooltip: l10n.deleteAllInHandle,
                 onPressed: () => _confirmDeleteHandle(context, handle, count),
               ),
             ],
@@ -923,22 +925,21 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       confirmDismiss: provider.confirmSwipeDelete
           ? (_) async {
+              final l10n = AppLocalizations.of(context);
               final ok = await showDialog<bool>(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: const Text("Delete memory?"),
-                  content: const Text(
-                    "This cannot be undone. The memory will be removed.",
-                  ),
+                  title: Text(l10n.deleteMemory),
+                  content: Text(l10n.deleteMemoryConfirm),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text("Cancel"),
+                      child: Text(l10n.cancel),
                     ),
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: TextButton.styleFrom(foregroundColor: Colors.red),
-                      child: const Text("Delete"),
+                      child: Text(l10n.delete),
                     ),
                   ],
                 ),
@@ -949,11 +950,12 @@ class _HomeScreenState extends State<HomeScreen> {
       onDismissed: (_) async {
         await provider.deleteMemory(item.id);
         if (context.mounted) {
+          final l10n = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(provider.lastSyncError != null
-                  ? "Delete failed: ${provider.lastSyncError}"
-                  : "Deleted"),
+                  ? l10n.deleteFailed(provider.lastSyncError!)
+                  : l10n.deleted),
             ),
           );
         }
@@ -967,6 +969,7 @@ class _HomeScreenState extends State<HomeScreen> {
     MemoryItem item, {
     bool showHandle = true,
   }) {
+    final l10n = AppLocalizations.of(context);
     final isNew = context.watch<MemoryProvider>().isNewItem(item);
     final card = GestureDetector(
       onTap: () => _openDetail(context, item),
@@ -985,7 +988,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ? Tooltip(
                   message: item.handle,
                   child: Text(
-                    handleDisplay(item.handle).sectionTitle,
+                    localizedSectionTitle(context, item.handle),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
@@ -1033,9 +1036,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: Colors.green.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(999),
                   ),
-                  child: const Text(
-                    "NEW",
-                    style: TextStyle(
+                  child: Text(
+                    AppLocalizations.of(context).newBadge,
+                    style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: Colors.green,
@@ -1044,25 +1047,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               IconButton(
                 icon: const Icon(Icons.copy),
-                tooltip: "Copy",
+                tooltip: l10n.copy,
                 onPressed: () async {
                   await Clipboard.setData(ClipboardData(text: item.content));
                   if (context.mounted) {
                     ScaffoldMessenger.of(
                       context,
-                    ).showSnackBar(const SnackBar(content: Text("Copied")));
+                    ).showSnackBar(SnackBar(content: Text(l10n.copied)));
                   }
                 },
               ),
               IconButton(
                 icon: const Icon(Icons.edit),
-                tooltip: "Edit",
+                tooltip: l10n.edit,
                 onPressed: () => _openEditor(context, item),
               ),
               if (defaultTargetPlatform == TargetPlatform.macOS)
                 IconButton(
                   icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
-                  tooltip: "Delete",
+                  tooltip: l10n.delete,
                   onPressed: () => _confirmDeleteMemory(context, item),
                 ),
             ],
@@ -1103,7 +1106,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final action = await showMenu<String>(
       context: context,
       position: rect,
-      items: const [PopupMenuItem(value: 'edit', child: Text('Edit'))],
+      items: [PopupMenuItem(value: 'edit', child: Text(AppLocalizations.of(context).edit))],
     );
 
     if (!mounted) return;
@@ -1113,22 +1116,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _confirmDeleteMemory(BuildContext context, MemoryItem item) async {
+    final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Delete memory?"),
-        content: const Text(
-          "This cannot be undone. The memory will be removed.",
-        ),
+        title: Text(l10n.deleteMemory),
+        content: Text(l10n.deleteMemoryConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Cancel"),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Delete"),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -1140,8 +1142,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(provider.lastSyncError != null
-              ? "Delete failed: ${provider.lastSyncError}"
-              : "Deleted"),
+              ? l10n.deleteFailed(provider.lastSyncError!)
+              : l10n.deleted),
         ),
       );
     }
@@ -1152,22 +1154,21 @@ class _HomeScreenState extends State<HomeScreen> {
     String handle,
     int count,
   ) async {
+    final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Delete entire handle?"),
-        content: Text(
-          "Delete all $count memories in \"$handle\"? This cannot be undone.",
-        ),
+        title: Text(l10n.deleteEntireHandle),
+        content: Text(l10n.deleteEntireHandleConfirm(count, handle)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Cancel"),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("Delete all"),
+            child: Text(l10n.deleteAll),
           ),
         ],
       ),
@@ -1179,8 +1180,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(provider.lastSyncError != null
-              ? "Delete failed: ${provider.lastSyncError}"
-              : "Deleted $count memories"),
+              ? l10n.deleteFailed(provider.lastSyncError!)
+              : l10n.deletedCountMemories(count)),
         ),
       );
     }

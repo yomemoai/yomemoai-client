@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../memory_provider.dart';
 import '../utils/handle_display.dart';
+import '../l10n/app_localizations.dart';
 import 'editor_screen.dart';
 
 class MemoryDetailScreen extends StatelessWidget {
@@ -10,9 +11,10 @@ class MemoryDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Memory Detail"),
+        title: Text(l10n.memoryDetail),
         actions: [
           IconButton(
             icon: const Icon(Icons.copy),
@@ -21,7 +23,7 @@ class MemoryDetailScreen extends StatelessWidget {
               if (context.mounted) {
                 ScaffoldMessenger.of(
                   context,
-                ).showSnackBar(const SnackBar(content: Text("Copied")));
+                ).showSnackBar(SnackBar(content: Text(l10n.copied)));
               }
             },
           ),
@@ -44,10 +46,10 @@ class MemoryDetailScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              handleDisplay(item.handle).sectionTitle,
+              localizedSectionTitle(context, item.handle),
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            if (item.handle != handleDisplay(item.handle).sectionTitle)
+            if (item.handle != localizedSectionTitle(context, item.handle))
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(

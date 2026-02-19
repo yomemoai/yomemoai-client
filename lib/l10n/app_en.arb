@@ -1,0 +1,216 @@
+{
+  "@@locale": "en",
+  "appTitle": "Yomemo.AI",
+  "configuration": "Configuration",
+  "pleaseSetApiKey": "Please set your API Key to get started",
+  "yomemoApiKey": "YoMemo API Key",
+  "enterApiKey": "Enter API Key",
+  "configured": "Configured",
+  "leaveEmptyToKeepCurrent": "Leave empty to keep current",
+  "privateKeyFile": "Private Key File",
+  "selectFileForEncryptionKey": "Select a file to use as encryption key",
+  "localLock": "Local Lock",
+  "newPassword": "New Password",
+  "confirmPassword": "Confirm Password",
+  "lockTimeoutMinutes": "Lock Timeout (minutes)",
+  "editor": "Editor",
+  "confirmSwipeToDelete": "Confirm swipe-to-delete",
+  "confirmSwipeToDeleteSubtitle": "Ask for confirmation when deleting a memory by swipe.",
+  "autoSaveIntervalSeconds": "Auto-save Interval (seconds)",
+  "autoSaveHelperText": "Also saves on blur. Range: 1-300",
+  "export": "Export",
+  "exportMemories": "Export memories",
+  "exportMemoriesSubtitle": "Export to folder, memories.pl, or other formats.",
+  "homeDefaultExpandedGroups": "Home: Default expanded groups",
+  "homeDefaultExpandedGroupsHelp": "Which groups (by handle prefix) are expanded by default on first open. After you expand/collapse on Home, your choice is remembered.",
+  "resetHomeToDefault": "Reset Home to this default",
+  "insightsAndNotifications": "Insights & Notifications",
+  "showRedBadgeOnInsights": "Show red badge on Insights",
+  "showRedBadgeOnInsightsSubtitle": "Display the number of rules with non-empty results in the app bar.",
+  "enableHapticsForNewInsights": "Enable haptics for new insights",
+  "enableHapticsForNewInsightsSubtitle": "Light vibration / click when new high-priority insights appear (when supported by device).",
+  "passwordsDoNotMatch": "Passwords do not match",
+  "settingsSaved": "Settings saved",
+  "saveAndConnect": "Save & Connect",
+  "homeExpandedGroupsReset": "Home expanded groups reset to default. Return to Home to see the change.",
+  "categoryVoice": "Voice",
+  "categoryDaily": "Daily",
+  "categoryYoMemo": "YoMemo",
+  "categoryPlan": "Plan",
+  "categoryGoals": "Goals",
+  "categoryOther": "Other",
+  "labelNoHandle": "No handle",
+  "encrypted": "Encrypted",
+  "lock": "Lock",
+  "searchHandles": "Search handles...",
+  "all": "All",
+  "insights": "Insights",
+  "noMemoriesFound": "No memories found. Tap + to create one.",
+  "overview": "Overview",
+  "refresh": "Refresh",
+  "overviewTagline1": "Immutable, zero-trust memory for every LLM session.",
+  "overviewTagline2": "YoMemo protects memory at rest and in retrieval.",
+  "memories": "Memories",
+  "handles": "Handles",
+  "lastSync": "Last sync: {time}",
+  "@lastSync": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "lastAttempt": "Last attempt: {time}",
+  "@lastAttempt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "lastError": "Last error: {error}",
+  "@lastError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "docs": "Docs",
+  "github": "GitHub",
+  "failedToOpen": "Failed to open {label}",
+  "@failedToOpen": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "helpAndDocs": "Help & Docs",
+  "addMemoryInHandle": "Add memory in this handle",
+  "deleteAllInHandle": "Delete all in this handle",
+  "deleteMemory": "Delete memory?",
+  "deleteMemoryConfirm": "This cannot be undone. The memory will be removed.",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "deleteFailed": "Delete failed: {error}",
+  "@deleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "deleted": "Deleted",
+  "newBadge": "NEW",
+  "copied": "Copied",
+  "copy": "Copy",
+  "edit": "Edit",
+  "deleteEntireHandle": "Delete entire handle?",
+  "deleteEntireHandleConfirm": "Delete all {count} memories in \"{handle}\"? This cannot be undone.",
+  "@deleteEntireHandleConfirm": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "handle": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteAll": "Delete all",
+  "deletedCountMemories": "Deleted {count} memories",
+  "@deletedCountMemories": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exportMemoriesTitle": "Export memories",
+  "chooseExportFormat": "Choose an export format. More options may be added later.",
+  "exportToFolder": "Export to folder",
+  "exportToFolderSubtitle": "One subfolder per handle; each has metadata.json and one .txt file per memory.",
+  "noMemoriesToExport": "No memories to export",
+  "exportCancelledOrNotSupported": "Export cancelled or not supported on this platform",
+  "exportedHandlesCount": "Exported {count} handle(s) to selected folder",
+  "@exportedHandlesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exportFailed": "Export failed: {error}",
+  "@exportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "exportMemoriesPl": "Export memories.pl",
+  "exportMemoriesPlSubtitle": "Prolog facts + rules for debug. Share/save file, or copy to clipboard if share fails.",
+  "memoriesPlReady": "memories.pl ready (saved or shared)",
+  "shareFailedCopiedToClipboard": "Share failed; copied to clipboard. Paste and save as memories.pl",
+  "saveFailed": "Save failed: {error}",
+  "@saveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "copyMemoriesPlToClipboard": "Copy memories.pl to clipboard",
+  "copyMemoriesPlSubtitle": "Paste into a file and save as memories.pl.",
+  "copiedPasteSaveMemoriesPl": "Copied. Paste into a file and save as memories.pl",
+  "copyFailed": "Copy failed: {error}",
+  "@copyFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "setLocalPassword": "Set Local Password",
+  "createLocalPasswordHint": "Create a local password to protect your memories on this device.",
+  "savePassword": "Save Password",
+  "passwordRequired": "Password is required",
+  "locked": "Locked",
+  "password": "Password",
+  "incorrectPassword": "Incorrect password",
+  "unlock": "Unlock",
+  "editMemory": "Edit Memory",
+  "newMemory": "New Memory",
+  "writing": "Writing...",
+  "handle": "Handle",
+  "descriptionOptional": "Description (Optional)",
+  "startWritingMemory": "Start writing your memory...",
+  "speakToCaptureMemory": "Speak to capture this memory",
+  "voiceCaptureOnlyMobile": "Voice capture is only available on mobile.",
+  "speechError": "Speech error: {error}",
+  "@speechError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "speechRecognitionNotAvailable": "Speech recognition not available",
+  "contentRequired": "Content is required",
+  "failedToSave": "Failed to save: {error}",
+  "@failedToSave": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "memoryDetail": "Memory Detail",
+  "noRulesToDisplay": "No rules to display.",
+  "resetToDefaultRules": "Reset to default rules",
+  "openDetails": "Open details",
+  "language": "Language",
+  "languageEnglish": "English",
+  "languageChinese": "中文"
+}

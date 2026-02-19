@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../memory_provider.dart';
+import '../l10n/app_localizations.dart';
 
 class LockScreen extends StatefulWidget {
   const LockScreen({super.key});
@@ -48,9 +49,9 @@ class _LockScreenState extends State<LockScreen> {
                   height: 60,
                 ),
                 const SizedBox(height: 12),
-                const Text(
-                  "Locked",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+                Text(
+                  AppLocalizations.of(context).locked,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 20),
                 TextField(
@@ -58,13 +59,13 @@ class _LockScreenState extends State<LockScreen> {
                   obscureText: true,
                   onSubmitted: (_) => _unlock(),
                   decoration: InputDecoration(
-                    labelText: "Password",
-                    errorText: _invalid ? "Incorrect password" : null,
+                    labelText: AppLocalizations.of(context).password,
+                    errorText: _invalid ? AppLocalizations.of(context).incorrectPassword : null,
                     border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
-                ElevatedButton(onPressed: _unlock, child: const Text("Unlock")),
+                ElevatedButton(onPressed: _unlock, child: Text(AppLocalizations.of(context).unlock)),
               ],
             ),
           ),

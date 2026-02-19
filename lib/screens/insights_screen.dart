@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../memory_provider.dart';
 import '../rule_engine.dart';
 import '../rule_models.dart';
+import '../l10n/app_localizations.dart';
 import 'memory_detail_screen.dart';
 import 'editor_screen.dart';
 
@@ -99,12 +100,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Insights'),
+            Text(l10n.insights),
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -147,9 +149,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'reset',
-                child: Text('Reset to default rules'),
+                child: Text(l10n.resetToDefaultRules),
               ),
             ],
           ),
@@ -241,7 +243,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   Widget _buildResultsList() {
     final filtered = _filteredResults;
     if (filtered.isEmpty) {
-      return const Center(child: Text('No rules to display.'));
+      return Center(child: Text(AppLocalizations.of(context).noRulesToDisplay));
     }
 
     return ListView.builder(
@@ -519,12 +521,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
       Offset.zero & overlay.size,
     );
 
+    final l10n = AppLocalizations.of(context);
     final action = await showMenu<String>(
       context: context,
       position: rect,
-      items: const [
-        PopupMenuItem(value: 'detail', child: Text('Open details')),
-        PopupMenuItem(value: 'edit', child: Text('Edit')),
+      items: [
+        PopupMenuItem(value: 'detail', child: Text(l10n.openDetails)),
+        PopupMenuItem(value: 'edit', child: Text(l10n.edit)),
       ],
     );
 
