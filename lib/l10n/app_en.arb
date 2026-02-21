@@ -212,5 +212,9 @@
   "openDetails": "Open details",
   "language": "Language",
   "languageEnglish": "English",
-  "languageChinese": "中文"
+  "languageChinese": "中文",
+  "memoryPanelToday": "Today",
+  "memoryPanelAll": "All memories",
+  "settingsDefaultMemoryPanel": "Default memory list",
+  "settingsDefaultMemoryPanelDesc": "Which list to show by default on home."
 }

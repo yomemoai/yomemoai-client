@@ -393,4 +393,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get languageChinese => '中文';
+
+  @override
+  String get memoryPanelToday => '今日新增';
+
+  @override
+  String get memoryPanelAll => '全部记忆';
+
+  @override
+  String get settingsDefaultMemoryPanel => '记忆列表默认显示';
+
+  @override
+  String get settingsDefaultMemoryPanelDesc => '打开首页时默认显示的列表。';
 }

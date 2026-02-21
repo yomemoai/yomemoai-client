@@ -310,6 +310,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
+                l10n.settingsDefaultMemoryPanel,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              l10n.settingsDefaultMemoryPanelDesc,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                ChoiceChip(
+                  label: Text(l10n.memoryPanelToday),
+                  selected: provider.memoryPanelMode == 'today',
+                  onSelected: (_) => provider.setMemoryPanelMode('today'),
+                ),
+                const SizedBox(width: 12),
+                ChoiceChip(
+                  label: Text(l10n.memoryPanelAll),
+                  selected: provider.memoryPanelMode == 'all',
+                  onSelected: (_) => provider.setMemoryPanelMode('all'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
                 l10n.insightsAndNotifications,
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),

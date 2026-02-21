@@ -18,6 +18,7 @@ const String _kPrefAutoSaveSeconds = "auto_save_seconds";
 const String _kPrefConfirmSwipeDelete = "confirm_swipe_delete";
 const String _kPrefShowInsightsBadge = "show_insights_badge";
 const String _kPrefAlertHaptics = "alert_haptics_enabled";
+const String _kPrefMemoryPanelDefault = "memory_panel_default";
 
 class MemoryItem {
   final String id;
@@ -116,6 +117,9 @@ class MemoryProvider extends ChangeNotifier {
   bool _showInsightsBadge = true;
   bool _alertHapticsEnabled = false;
 
+  /// "today" | "all". Default "today". Persisted in prefs; used for home list.
+  String _memoryPanelMode = "today";
+
   String _handleSearchQuery = '';
 
   void setHandleSearchQuery(String query) {
@@ -156,6 +160,34 @@ class MemoryProvider extends ChangeNotifier {
   String get userAvatarUrl => _userAvatarUrl;
   bool get showInsightsBadge => _showInsightsBadge;
   bool get alertHapticsEnabled => _alertHapticsEnabled;
+  String get memoryPanelMode => _memoryPanelMode;
+
+  /// Persist and set home memory list mode: "today" or "all".
+  Future<void> setMemoryPanelMode(String mode) async {
+    if (mode != "today" && mode != "all") return;
+    _memoryPanelMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPrefMemoryPanelDefault, mode);
+    notifyListeners();
+  }
+
+  static bool _isToday(DateTime? d) {
+    if (d == null) return false;
+    final now = DateTime.now();
+    return d.year == now.year && d.month == now.month && d.day == now.day;
+  }
+
+  List<MemoryItem> get itemsCreatedToday =>
+      items.where((item) => _isToday(item.createdAt)).toList();
+
+  /// List to show on home: either today-only or all, then filtered by handle search.
+  List<MemoryItem> get displayItems {
+    final base = _memoryPanelMode == "today" ? itemsCreatedToday : items;
+    if (_handleSearchQuery.isEmpty) return base;
+    return base
+        .where((item) => item.handle.toLowerCase().contains(_handleSearchQuery))
+        .toList();
+  }
 
   List<MemoryItem> get filteredItems {
     if (_handleSearchQuery.isEmpty) {
@@ -192,6 +224,8 @@ class MemoryProvider extends ChangeNotifier {
     _confirmSwipeDelete = prefs.getBool(_kPrefConfirmSwipeDelete) ?? true;
     _showInsightsBadge = prefs.getBool(_kPrefShowInsightsBadge) ?? true;
     _alertHapticsEnabled = prefs.getBool(_kPrefAlertHaptics) ?? false;
+    final savedMode = prefs.getString(_kPrefMemoryPanelDefault);
+    _memoryPanelMode = (savedMode == "today" || savedMode == "all") ? savedMode! : "today";
 
     if (apiKey.isNotEmpty) {
       _api.updateApiKey(apiKey);

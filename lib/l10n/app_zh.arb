@@ -118,5 +118,9 @@
   "openDetails": "查看详情",
   "language": "语言",
   "languageEnglish": "English",
-  "languageChinese": "中文"
+  "languageChinese": "中文",
+  "memoryPanelToday": "今日新增",
+  "memoryPanelAll": "全部记忆",
+  "settingsDefaultMemoryPanel": "记忆列表默认显示",
+  "settingsDefaultMemoryPanelDesc": "打开首页时默认显示的列表。"
 }

@@ -410,4 +410,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get languageChinese => '中文';
+
+  @override
+  String get memoryPanelToday => 'Today';
+
+  @override
+  String get memoryPanelAll => 'All memories';
+
+  @override
+  String get settingsDefaultMemoryPanel => 'Default memory list';
+
+  @override
+  String get settingsDefaultMemoryPanelDesc =>
+      'Which list to show by default on home.';
 }

@@ -811,6 +811,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'中文'**
   String get languageChinese;
+
+  /// No description provided for @memoryPanelToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get memoryPanelToday;
+
+  /// No description provided for @memoryPanelAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All memories'**
+  String get memoryPanelAll;
+
+  /// No description provided for @settingsDefaultMemoryPanel.
+  ///
+  /// In en, this message translates to:
+  /// **'Default memory list'**
+  String get settingsDefaultMemoryPanel;
+
+  /// No description provided for @settingsDefaultMemoryPanelDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Which list to show by default on home.'**
+  String get settingsDefaultMemoryPanelDesc;
 }
 
 class _AppLocalizationsDelegate

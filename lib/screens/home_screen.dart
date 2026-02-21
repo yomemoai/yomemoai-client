@@ -251,12 +251,28 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: SegmentedButton<String>(
+              segments: [
+                ButtonSegment(value: 'today', label: Text(l10n.memoryPanelToday)),
+                ButtonSegment(value: 'all', label: Text(l10n.memoryPanelAll)),
+              ],
+              selected: {provider.memoryPanelMode},
+              onSelectionChanged: (Set<String> selected) {
+                final mode = selected.first;
+                if (mode == 'today' || mode == 'all') {
+                  provider.setMemoryPanelMode(mode);
+                }
+              },
+            ),
+          ),
           Expanded(
             child: provider.items.isEmpty
                 ? (provider.isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _buildEmptyState())
-                : _buildGroupedList(context, provider.filteredItems),
+                : _buildGroupedList(context, provider.displayItems),
           ),
         ],
       ),
